@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Category {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique
+  created_at DateTime  @default(now())
+  products   Product[]
+  expenses   Expense[]
+
+  @@map("categories")
+}
+
+model Product {
+  id                  Int        @id @default(autoincrement())
+  name                String
+  sku                 String?    @unique
+  barcode             String?    @unique
+  category_id         Int?
+  category            Category?  @relation(fields: [category_id], references: [id])
+  factory             String?
+  description         String?
+  cost_price          Float      @default(0)
+  sell_price          Float      @default(0)
+  stock_qty           Int        @default(0)
+  low_stock_threshold Int?       @default(5)
+  image_path          String?
+  created_at          DateTime   @default(now())
+  updated_at          DateTime   @updatedAt
+  sale_items          SaleItem[]
+
+  @@index([barcode], map: "idx_products_barcode")
+  @@index([sku], map: "idx_products_sku")
+  @@index([category_id], map: "idx_products_category")
+  @@map("products")
+}
+
+model Customer {
+  id           Int                   @id @default(autoincrement())
+  name         String
+  phone        String?
+  email        String?
+  address      String?
+  balance      Float                 @default(0)
+  created_at   DateTime              @default(now())
+  sales        Sale[]
+  transactions CustomerTransaction[]
+
+  @@map("customers")
+}
+
+model Supplier {
+  id           Int                   @id @default(autoincrement())
+  name         String
+  phone        String?
+  email        String?
+  address      String?
+  balance      Float                 @default(0)
+  created_at   DateTime              @default(now())
+  transactions SupplierTransaction[]
+
+  @@map("suppliers")
+}
+
+enum PaymentMethod {
+  cash
+  instapay
+  wallet
+  card
+  credit
+}
+
+model Sale {
+  id             Int           @id @default(autoincrement())
+  customer_id    Int?
+  customer       Customer?     @relation(fields: [customer_id], references: [id])
+  total          Float
+  discount       Float         @default(0)
+  tax            Float         @default(0)
+  amount_paid    Float
+  payment_method PaymentMethod
+  notes          String?
+  seller_name    String?
+  created_at     DateTime      @default(now())
+  items          SaleItem[]
+
+  @@index([created_at], map: "idx_sales_date")
+  @@index([customer_id], map: "idx_sales_customer")
+  @@map("sales")
+}
+
+model SaleItem {
+  id         Int     @id @default(autoincrement())
+  sale_id    Int
+  sale       Sale    @relation(fields: [sale_id], references: [id], onDelete: Cascade)
+  product_id Int
+  product    Product @relation(fields: [product_id], references: [id])
+  qty        Int
+  unit_price Float
+  cost_price Float
+
+  @@index([sale_id], map: "idx_sale_items_sale")
+  @@index([product_id], map: "idx_sale_items_product")
+  @@map("sale_items")
+}
+
+model Expense {
+  id          Int       @id @default(autoincrement())
+  category_id Int?
+  categoryRel Category? @relation(fields: [category_id], references: [id])
+  category    String
+  amount      Float
+  description String?
+  date        String    // YYYY-MM-DD
+  created_at  DateTime  @default(now())
+
+  @@index([date], map: "idx_expenses_date")
+  @@index([category], map: "idx_expenses_category")
+  @@map("expenses")
+}
+
+enum CustomerTransactionType {
+  payment
+  debt
+}
+
+model CustomerTransaction {
+  id          Int                     @id @default(autoincrement())
+  customer_id Int
+  customer    Customer                @relation(fields: [customer_id], references: [id])
+  type        CustomerTransactionType
+  amount      Float
+  notes       String?
+  created_at  DateTime                @default(now())
+
+  @@index([customer_id], map: "idx_customer_transactions_customer")
+  @@map("customer_transactions")
+}
+
+enum SupplierTransactionType {
+  payment
+  purchase
+}
+
+model SupplierTransaction {
+  id          Int                     @id @default(autoincrement())
+  supplier_id Int
+  supplier    Supplier                @relation(fields: [supplier_id], references: [id])
+  type        SupplierTransactionType
+  amount      Float
+  notes       String?
+  created_at  DateTime                @default(now())
+
+  @@index([supplier_id], map: "idx_supplier_transactions_supplier")
+  @@map("supplier_transactions")
+}
+
+model User {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  phone      String
+  logs       String   @default("[]") // JSON string storing activity logs
+  created_at DateTime @default(now())
+
+  @@map("users")
+}
