@@ -76,12 +76,18 @@ export const createSale = async (req: Request, res: Response) => {
           },
         });
 
-        subtotal += product.sell_price * qtyInt;
+        const unitPriceFloat = item.unit_price !== undefined ? parseFloat(item.unit_price) : product.sell_price;
+
+        if (isNaN(unitPriceFloat)) {
+          throw new Error(`Valid unit_price is required for product "${product.name}"`);
+        }
+
+        subtotal += unitPriceFloat * qtyInt;
 
         verifiedItems.push({
           product_id: product.id,
           qty: qtyInt,
-          unit_price: product.sell_price,
+          unit_price: unitPriceFloat,
           cost_price: product.cost_price,
         });
       }
