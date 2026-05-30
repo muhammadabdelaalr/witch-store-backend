@@ -1,15 +1,14 @@
-import { Router } from "express";
-import { getAllCategories, createCategory } from "../controllers/categories";
-
-const router = Router();
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const categories_1 = require("../controllers/categories");
+const router = (0, express_1.Router)();
 /**
  * @swagger
  * tags:
  *   name: Categories
  *   description: Category management
  */
-
 /**
  * @swagger
  * /api/categories:
@@ -33,8 +32,7 @@ const router = Router();
  *                     type: string
  *                     description: The category name
  */
-router.get("/", getAllCategories);
-
+router.get('/', categories_1.getAllCategories);
 /**
  * @swagger
  * /api/categories:
@@ -61,6 +59,5 @@ router.get("/", getAllCategories);
  *       500:
  *         description: Internal server error
  */
-router.post("/", createCategory);
-
-export default router;
+router.post('/', categories_1.createCategory);
+exports.default = router;
