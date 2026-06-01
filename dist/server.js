@@ -26,30 +26,30 @@ app.use(express_1.default.urlencoded({ extended: true }));
 // Request Logger (Premium/Modern UX)
 app.use((req, res, next) => {
     const start = Date.now();
-    res.on('finish', () => {
+    res.on("finish", () => {
         const duration = Date.now() - start;
         console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
     });
     next();
 });
 // Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+app.get("/health", (req, res) => {
+    res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 // API Routes
-app.use('/api/categories', categories_1.default);
-app.use('/api/products', products_1.default);
-app.use('/api/customers', customers_1.default);
-app.use('/api/suppliers', suppliers_1.default);
-app.use('/api/sales', sales_1.default);
-app.use('/api/expenses', expenses_1.default);
-app.use('/api/reports', reports_1.default);
-app.use('/api/users', users_1.default);
+app.use("/api/categories", categories_1.default);
+app.use("/api/products", products_1.default);
+app.use("/api/customers", customers_1.default);
+app.use("/api/suppliers", suppliers_1.default);
+app.use("/api/sales", sales_1.default);
+app.use("/api/expenses", expenses_1.default);
+app.use("/api/reports", reports_1.default);
+app.use("/api/users", users_1.default);
 // Global Error Handler
 app.use((err, req, res, next) => {
-    console.error('[Error] Handler caught exception:', err);
+    console.error("[Error] Handler caught exception:", err);
     res.status(500).json({
-        error: 'Internal Server Error',
+        error: "Internal Server Error",
         message: err.message,
     });
 });

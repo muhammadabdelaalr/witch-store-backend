@@ -12,6 +12,7 @@ export const createSale = async (req: Request, res: Response) => {
       notes,
       seller_name,
       items,
+      sale_type = 'retail',
     } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -100,12 +101,13 @@ export const createSale = async (req: Request, res: Response) => {
       // 3. Create Sale record
       const newSale = await tx.sale.create({
         data: {
-          customer_id: customerIdInt,
+          ...(customerIdInt ? { customer: { connect: { id: customerIdInt } } } : {}),
           total: grandTotal,
           discount: discountFloat,
           tax: taxFloat,
           amount_paid: amountPaidFloat,
           payment_method,
+          sale_type: sale_type?.toLowerCase() || 'retail',
           notes: notes || null,
           seller_name: seller_name || null,
         },
@@ -196,7 +198,7 @@ export const createSale = async (req: Request, res: Response) => {
 
 export const getAllSales = async (req: Request, res: Response) => {
   try {
-    const { from, to, customerId, page = 1, limit = 10 } = req.query;
+    const { from, to, customerId, sale_type, page = 1, limit = 10 } = req.query;
     const pageInt = parseInt(page as string);
     const limitInt = parseInt(limit as string);
     const skip = (pageInt - 1) * limitInt;
@@ -205,6 +207,10 @@ export const getAllSales = async (req: Request, res: Response) => {
 
     if (customerId) {
       where.customer_id = parseInt(customerId as string);
+    }
+
+    if (sale_type && sale_type !== 'all') {
+      where.sale_type = sale_type as string;
     }
 
     if (from || to) {

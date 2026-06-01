@@ -1,0 +1,1 @@
+declare module 'better-sqlite3' { export interface Database { exec(sql: string): void; prepare(sql: string): any; transaction(fn: any): any; pragma(sql: string): any; } export default function Database(filename: string, options?: any): Database; }

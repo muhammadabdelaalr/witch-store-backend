@@ -142,6 +142,7 @@ export const SaleScalarFieldEnum = {
   tax: 'tax',
   amount_paid: 'amount_paid',
   payment_method: 'payment_method',
+  sale_type: 'sale_type',
   notes: 'notes',
   seller_name: 'seller_name',
   created_at: 'created_at'

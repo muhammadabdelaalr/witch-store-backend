@@ -44,6 +44,9 @@ const router = Router();
  *                 type: number
  *               payment_method:
  *                 type: string
+ *               sale_type:
+ *                 type: string
+ *                 enum: [retail, wholesale]
  *               notes:
  *                 type: string
  *               seller_name:

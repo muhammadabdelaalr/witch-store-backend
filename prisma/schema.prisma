@@ -76,6 +76,11 @@ enum PaymentMethod {
   credit
 }
 
+enum SaleType {
+  retail
+  wholesale
+}
+
 model Sale {
   id             Int           @id @default(autoincrement())
   customer_id    Int?
@@ -85,6 +90,7 @@ model Sale {
   tax            Float         @default(0)
   amount_paid    Float
   payment_method PaymentMethod
+  sale_type      SaleType      @default(retail)
   notes          String?
   seller_name    String?
   created_at     DateTime      @default(now())

@@ -20,6 +20,14 @@ export const PaymentMethod = {
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod]
 
 
+export const SaleType = {
+  retail: 'retail',
+  wholesale: 'wholesale'
+} as const
+
+export type SaleType = (typeof SaleType)[keyof typeof SaleType]
+
+
 export const CustomerTransactionType = {
   payment: 'payment',
   debt: 'debt'

@@ -1255,6 +1255,7 @@ export const SaleScalarFieldEnum = {
   tax: 'tax',
   amount_paid: 'amount_paid',
   payment_method: 'payment_method',
+  sale_type: 'sale_type',
   notes: 'notes',
   seller_name: 'seller_name',
   created_at: 'created_at'
@@ -1420,6 +1421,20 @@ export type EnumPaymentMethodFieldRefInput<$PrismaModel> = FieldRefInputType<$Pr
  * Reference to a field of type 'PaymentMethod[]'
  */
 export type ListEnumPaymentMethodFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PaymentMethod[]'>
+    
+
+
+/**
+ * Reference to a field of type 'SaleType'
+ */
+export type EnumSaleTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SaleType'>
+    
+
+
+/**
+ * Reference to a field of type 'SaleType[]'
+ */
+export type ListEnumSaleTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SaleType[]'>
     
 
 

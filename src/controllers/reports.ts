@@ -178,7 +178,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 
 export const getSalesReport = async (req: Request, res: Response) => {
   try {
-    const { from, to } = req.query;
+    const { from, to, sale_type } = req.query;
 
     if (!from || !to) {
       res.status(400).json({ error: 'from and to date parameters are required' });
@@ -194,6 +194,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
           gte: startDate,
           lte: endDate,
         },
+        ...(sale_type && sale_type !== 'all' ? { sale_type: sale_type as any } : {}),
       },
       include: {
         items: {
@@ -291,7 +292,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
 
 export const getProfitReport = async (req: Request, res: Response) => {
   try {
-    const { from, to } = req.query;
+    const { from, to, sale_type } = req.query;
 
     if (!from || !to) {
       res.status(400).json({ error: 'from and to date parameters are required' });
@@ -307,6 +308,7 @@ export const getProfitReport = async (req: Request, res: Response) => {
           gte: startDate,
           lte: endDate,
         },
+        ...(sale_type && sale_type !== 'all' ? { sale_type: sale_type as any } : {}),
       },
       include: {
         items: true,

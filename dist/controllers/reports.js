@@ -205,7 +205,11 @@ const getSalesReport = async (req, res) => {
             totalDiscountAmount += discountVal;
             totalTaxAmount += taxVal;
             const dateStr = sale.created_at.toISOString().split('T')[0];
-            dailyTotals[dateStr] = (dailyTotals[dateStr] || 0) + sale.total;
+            if (!dailyTotals[dateStr]) {
+                dailyTotals[dateStr] = { total: 0, count: 0 };
+            }
+            dailyTotals[dateStr].total += sale.total;
+            dailyTotals[dateStr].count += 1;
             const method = sale.payment_method;
             if (paymentMethods[method]) {
                 paymentMethods[method].count += 1;
@@ -225,7 +229,8 @@ const getSalesReport = async (req, res) => {
         });
         const salesByDay = Object.keys(dailyTotals).map((date) => ({
             date,
-            total: dailyTotals[date],
+            total: dailyTotals[date].total,
+            count: dailyTotals[date].count,
         }));
         const topProducts = Object.keys(productSales)
             .map((id) => ({
@@ -234,14 +239,21 @@ const getSalesReport = async (req, res) => {
         }))
             .sort((a, b) => b.qty - a.qty)
             .slice(0, 10);
+        const paymentMethodBreakdown = Object.keys(paymentMethods)
+            .map((method) => ({
+            method,
+            total: paymentMethods[method].total,
+            count: paymentMethods[method].count,
+        }))
+            .filter((m) => m.count > 0); // Only return used methods
         res.json({
+            totalSales: sales.length,
             totalRevenue,
-            totalDiscountAmount,
-            totalTaxAmount,
-            salesCount: sales.length,
+            totalDiscount: totalDiscountAmount,
+            averageOrderValue: sales.length > 0 ? totalRevenue / sales.length : 0,
             salesByDay,
             topProducts,
-            paymentMethods,
+            paymentMethodBreakdown,
         });
     }
     catch (error) {
@@ -271,11 +283,21 @@ const getProfitReport = async (req, res) => {
         });
         let totalRevenue = 0;
         let costOfGoodsSold = 0;
+        const dailyProfit = {};
         sales.forEach((sale) => {
             totalRevenue += sale.total;
+            let saleCost = 0;
             sale.items.forEach((item) => {
-                costOfGoodsSold += item.cost_price * item.qty;
+                saleCost += item.cost_price * item.qty;
             });
+            costOfGoodsSold += saleCost;
+            const dateStr = sale.created_at.toISOString().split('T')[0];
+            if (!dailyProfit[dateStr]) {
+                dailyProfit[dateStr] = { revenue: 0, cost: 0, profit: 0 };
+            }
+            dailyProfit[dateStr].revenue += sale.total;
+            dailyProfit[dateStr].cost += saleCost;
+            dailyProfit[dateStr].profit += (sale.total - saleCost);
         });
         const grossProfit = totalRevenue - costOfGoodsSold;
         const expenses = await prisma_1.prisma.expense.findMany({
@@ -286,18 +308,29 @@ const getProfitReport = async (req, res) => {
                 },
             },
         });
-        const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+        let totalExpenses = 0;
+        const expByCategory = {};
+        expenses.forEach((exp) => {
+            totalExpenses += exp.amount;
+            expByCategory[exp.category] = (expByCategory[exp.category] || 0) + exp.amount;
+        });
+        const expensesByCategory = Object.keys(expByCategory).map(category => ({
+            category,
+            total: expByCategory[category]
+        }));
         const netProfit = grossProfit - totalExpenses;
-        const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
-        const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+        const profitByDay = Object.keys(dailyProfit).map((date) => ({
+            date,
+            revenue: dailyProfit[date].revenue,
+            cost: dailyProfit[date].cost,
+            profit: dailyProfit[date].profit,
+        }));
         res.json({
-            totalRevenue,
-            costOfGoodsSold,
             grossProfit,
-            grossMargin,
             totalExpenses,
             netProfit,
-            netMargin,
+            profitByDay,
+            expensesByCategory
         });
     }
     catch (error) {

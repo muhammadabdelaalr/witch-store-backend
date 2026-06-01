@@ -32,7 +32,7 @@ const router = (0, express_1.Router)();
  *                     type: string
  *                     description: The category name
  */
-router.get('/', categories_1.getAllCategories);
+router.get("/", categories_1.getAllCategories);
 /**
  * @swagger
  * /api/categories:
@@ -59,5 +59,5 @@ router.get('/', categories_1.getAllCategories);
  *       500:
  *         description: Internal server error
  */
-router.post('/', categories_1.createCategory);
+router.post("/", categories_1.createCategory);
 exports.default = router;
