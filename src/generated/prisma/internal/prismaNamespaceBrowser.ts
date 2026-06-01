@@ -60,7 +60,9 @@ export const ModelName = {
   Expense: 'Expense',
   CustomerTransaction: 'CustomerTransaction',
   SupplierTransaction: 'SupplierTransaction',
-  User: 'User'
+  User: 'User',
+  Refund: 'Refund',
+  RefundItem: 'RefundItem'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -209,6 +211,30 @@ export const UserScalarFieldEnum = {
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const RefundScalarFieldEnum = {
+  id: 'id',
+  sale_id: 'sale_id',
+  total: 'total',
+  reason: 'reason',
+  seller_name: 'seller_name',
+  created_at: 'created_at'
+} as const
+
+export type RefundScalarFieldEnum = (typeof RefundScalarFieldEnum)[keyof typeof RefundScalarFieldEnum]
+
+
+export const RefundItemScalarFieldEnum = {
+  id: 'id',
+  refund_id: 'refund_id',
+  product_id: 'product_id',
+  qty: 'qty',
+  unit_price: 'unit_price',
+  cost_price: 'cost_price'
+} as const
+
+export type RefundItemScalarFieldEnum = (typeof RefundItemScalarFieldEnum)[keyof typeof RefundItemScalarFieldEnum]
 
 
 export const SortOrder = {

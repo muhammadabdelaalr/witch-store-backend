@@ -67,3 +67,13 @@ export type SupplierTransaction = Prisma.SupplierTransactionModel
  * 
  */
 export type User = Prisma.UserModel
+/**
+ * Model Refund
+ * 
+ */
+export type Refund = Prisma.RefundModel
+/**
+ * Model RefundItem
+ * 
+ */
+export type RefundItem = Prisma.RefundItemModel

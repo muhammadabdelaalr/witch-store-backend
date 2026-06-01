@@ -9,13 +9,17 @@
 * 🟢 You can import this file directly.
 */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SupplierTransactionType = exports.CustomerTransactionType = exports.PaymentMethod = void 0;
+exports.SupplierTransactionType = exports.CustomerTransactionType = exports.SaleType = exports.PaymentMethod = void 0;
 exports.PaymentMethod = {
     cash: 'cash',
     instapay: 'instapay',
     wallet: 'wallet',
     card: 'card',
     credit: 'credit'
+};
+exports.SaleType = {
+    retail: 'retail',
+    wholesale: 'wholesale'
 };
 exports.CustomerTransactionType = {
     payment: 'payment',

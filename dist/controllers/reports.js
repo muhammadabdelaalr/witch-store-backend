@@ -163,7 +163,7 @@ const getDashboardStats = async (req, res) => {
 exports.getDashboardStats = getDashboardStats;
 const getSalesReport = async (req, res) => {
     try {
-        const { from, to } = req.query;
+        const { from, to, sale_type } = req.query;
         if (!from || !to) {
             res.status(400).json({ error: 'from and to date parameters are required' });
             return;
@@ -176,6 +176,7 @@ const getSalesReport = async (req, res) => {
                     gte: startDate,
                     lte: endDate,
                 },
+                ...(sale_type && sale_type !== 'all' ? { sale_type: sale_type } : {}),
             },
             include: {
                 items: {
@@ -227,6 +228,32 @@ const getSalesReport = async (req, res) => {
                 productSales[item.product_id].revenue += item.unit_price * item.qty;
             });
         });
+        const refunds = await prisma_1.prisma.refund.findMany({
+            where: {
+                created_at: {
+                    gte: startDate,
+                    lte: endDate,
+                },
+                ...(sale_type && sale_type !== 'all' ? { sale: { sale_type: sale_type } } : {}),
+            },
+            include: {
+                items: true,
+            }
+        });
+        refunds.forEach((refund) => {
+            totalRevenue -= refund.total;
+            const dateStr = refund.created_at.toISOString().split('T')[0];
+            if (!dailyTotals[dateStr]) {
+                dailyTotals[dateStr] = { total: 0, count: 0 };
+            }
+            dailyTotals[dateStr].total -= refund.total;
+            refund.items.forEach((item) => {
+                if (productSales[item.product_id]) {
+                    productSales[item.product_id].qty -= item.qty;
+                    productSales[item.product_id].revenue -= item.unit_price * item.qty;
+                }
+            });
+        });
         const salesByDay = Object.keys(dailyTotals).map((date) => ({
             date,
             total: dailyTotals[date].total,
@@ -263,7 +290,7 @@ const getSalesReport = async (req, res) => {
 exports.getSalesReport = getSalesReport;
 const getProfitReport = async (req, res) => {
     try {
-        const { from, to } = req.query;
+        const { from, to, sale_type } = req.query;
         if (!from || !to) {
             res.status(400).json({ error: 'from and to date parameters are required' });
             return;
@@ -276,6 +303,7 @@ const getProfitReport = async (req, res) => {
                     gte: startDate,
                     lte: endDate,
                 },
+                ...(sale_type && sale_type !== 'all' ? { sale_type: sale_type } : {}),
             },
             include: {
                 items: true,
@@ -298,6 +326,33 @@ const getProfitReport = async (req, res) => {
             dailyProfit[dateStr].revenue += sale.total;
             dailyProfit[dateStr].cost += saleCost;
             dailyProfit[dateStr].profit += (sale.total - saleCost);
+        });
+        const refunds = await prisma_1.prisma.refund.findMany({
+            where: {
+                created_at: {
+                    gte: startDate,
+                    lte: endDate,
+                },
+                ...(sale_type && sale_type !== 'all' ? { sale: { sale_type: sale_type } } : {}),
+            },
+            include: {
+                items: true,
+            }
+        });
+        refunds.forEach((refund) => {
+            totalRevenue -= refund.total;
+            let refundCost = 0;
+            refund.items.forEach((item) => {
+                refundCost += item.cost_price * item.qty;
+            });
+            costOfGoodsSold -= refundCost;
+            const dateStr = refund.created_at.toISOString().split('T')[0];
+            if (!dailyProfit[dateStr]) {
+                dailyProfit[dateStr] = { revenue: 0, cost: 0, profit: 0 };
+            }
+            dailyProfit[dateStr].revenue -= refund.total;
+            dailyProfit[dateStr].cost -= refundCost;
+            dailyProfit[dateStr].profit -= (refund.total - refundCost);
         });
         const grossProfit = totalRevenue - costOfGoodsSold;
         const expenses = await prisma_1.prisma.expense.findMany({

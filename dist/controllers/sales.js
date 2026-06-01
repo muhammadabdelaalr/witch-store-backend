@@ -4,7 +4,7 @@ exports.getSaleById = exports.getAllSales = exports.createSale = void 0;
 const prisma_1 = require("../prisma");
 const createSale = async (req, res) => {
     try {
-        const { customer_id, discount = 0, tax = 0, amount_paid, payment_method, notes, seller_name, items, } = req.body;
+        const { customer_id, discount = 0, tax = 0, amount_paid, payment_method, notes, seller_name, items, sale_type = 'retail', } = req.body;
         if (!items || !Array.isArray(items) || items.length === 0) {
             res.status(400).json({ error: 'Sale must contain at least one item' });
             return;
@@ -72,12 +72,13 @@ const createSale = async (req, res) => {
             // 3. Create Sale record
             const newSale = await tx.sale.create({
                 data: {
-                    customer_id: customerIdInt,
+                    ...(customerIdInt ? { customer: { connect: { id: customerIdInt } } } : {}),
                     total: grandTotal,
                     discount: discountFloat,
                     tax: taxFloat,
                     amount_paid: amountPaidFloat,
                     payment_method,
+                    sale_type: sale_type?.toLowerCase() || 'retail',
                     notes: notes || null,
                     seller_name: seller_name || null,
                 },
@@ -161,13 +162,16 @@ const createSale = async (req, res) => {
 exports.createSale = createSale;
 const getAllSales = async (req, res) => {
     try {
-        const { from, to, customerId, page = 1, limit = 10 } = req.query;
+        const { from, to, customerId, sale_type, page = 1, limit = 10 } = req.query;
         const pageInt = parseInt(page);
         const limitInt = parseInt(limit);
         const skip = (pageInt - 1) * limitInt;
         const where = {};
         if (customerId) {
             where.customer_id = parseInt(customerId);
+        }
+        if (sale_type && sale_type !== 'all') {
+            where.sale_type = sale_type;
         }
         if (from || to) {
             where.created_at = {};

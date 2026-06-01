@@ -310,6 +310,7 @@ export type ProductWhereInput = {
   updated_at?: Prisma.DateTimeFilter<"Product"> | Date | string
   category?: Prisma.XOR<Prisma.CategoryNullableScalarRelationFilter, Prisma.CategoryWhereInput> | null
   sale_items?: Prisma.SaleItemListRelationFilter
+  refund_items?: Prisma.RefundItemListRelationFilter
 }
 
 export type ProductOrderByWithRelationInput = {
@@ -329,6 +330,7 @@ export type ProductOrderByWithRelationInput = {
   updated_at?: Prisma.SortOrder
   category?: Prisma.CategoryOrderByWithRelationInput
   sale_items?: Prisma.SaleItemOrderByRelationAggregateInput
+  refund_items?: Prisma.RefundItemOrderByRelationAggregateInput
 }
 
 export type ProductWhereUniqueInput = Prisma.AtLeast<{
@@ -351,6 +353,7 @@ export type ProductWhereUniqueInput = Prisma.AtLeast<{
   updated_at?: Prisma.DateTimeFilter<"Product"> | Date | string
   category?: Prisma.XOR<Prisma.CategoryNullableScalarRelationFilter, Prisma.CategoryWhereInput> | null
   sale_items?: Prisma.SaleItemListRelationFilter
+  refund_items?: Prisma.RefundItemListRelationFilter
 }, "id" | "sku" | "barcode">
 
 export type ProductOrderByWithAggregationInput = {
@@ -410,6 +413,7 @@ export type ProductCreateInput = {
   updated_at?: Date | string
   category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
   sale_items?: Prisma.SaleItemCreateNestedManyWithoutProductInput
+  refund_items?: Prisma.RefundItemCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateInput = {
@@ -428,6 +432,7 @@ export type ProductUncheckedCreateInput = {
   created_at?: Date | string
   updated_at?: Date | string
   sale_items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutProductInput
+  refund_items?: Prisma.RefundItemUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductUpdateInput = {
@@ -445,6 +450,7 @@ export type ProductUpdateInput = {
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
   sale_items?: Prisma.SaleItemUpdateManyWithoutProductNestedInput
+  refund_items?: Prisma.RefundItemUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateInput = {
@@ -463,6 +469,7 @@ export type ProductUncheckedUpdateInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sale_items?: Prisma.SaleItemUncheckedUpdateManyWithoutProductNestedInput
+  refund_items?: Prisma.RefundItemUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductCreateManyInput = {
@@ -674,6 +681,20 @@ export type ProductUpdateOneRequiredWithoutSale_itemsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.ProductUpdateToOneWithWhereWithoutSale_itemsInput, Prisma.ProductUpdateWithoutSale_itemsInput>, Prisma.ProductUncheckedUpdateWithoutSale_itemsInput>
 }
 
+export type ProductCreateNestedOneWithoutRefund_itemsInput = {
+  create?: Prisma.XOR<Prisma.ProductCreateWithoutRefund_itemsInput, Prisma.ProductUncheckedCreateWithoutRefund_itemsInput>
+  connectOrCreate?: Prisma.ProductCreateOrConnectWithoutRefund_itemsInput
+  connect?: Prisma.ProductWhereUniqueInput
+}
+
+export type ProductUpdateOneRequiredWithoutRefund_itemsNestedInput = {
+  create?: Prisma.XOR<Prisma.ProductCreateWithoutRefund_itemsInput, Prisma.ProductUncheckedCreateWithoutRefund_itemsInput>
+  connectOrCreate?: Prisma.ProductCreateOrConnectWithoutRefund_itemsInput
+  upsert?: Prisma.ProductUpsertWithoutRefund_itemsInput
+  connect?: Prisma.ProductWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ProductUpdateToOneWithWhereWithoutRefund_itemsInput, Prisma.ProductUpdateWithoutRefund_itemsInput>, Prisma.ProductUncheckedUpdateWithoutRefund_itemsInput>
+}
+
 export type ProductCreateWithoutCategoryInput = {
   name: string
   sku?: string | null
@@ -688,6 +709,7 @@ export type ProductCreateWithoutCategoryInput = {
   created_at?: Date | string
   updated_at?: Date | string
   sale_items?: Prisma.SaleItemCreateNestedManyWithoutProductInput
+  refund_items?: Prisma.RefundItemCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateWithoutCategoryInput = {
@@ -705,6 +727,7 @@ export type ProductUncheckedCreateWithoutCategoryInput = {
   created_at?: Date | string
   updated_at?: Date | string
   sale_items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutProductInput
+  refund_items?: Prisma.RefundItemUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutCategoryInput = {
@@ -767,6 +790,7 @@ export type ProductCreateWithoutSale_itemsInput = {
   created_at?: Date | string
   updated_at?: Date | string
   category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  refund_items?: Prisma.RefundItemCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateWithoutSale_itemsInput = {
@@ -784,6 +808,7 @@ export type ProductUncheckedCreateWithoutSale_itemsInput = {
   image_path?: string | null
   created_at?: Date | string
   updated_at?: Date | string
+  refund_items?: Prisma.RefundItemUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutSale_itemsInput = {
@@ -816,6 +841,7 @@ export type ProductUpdateWithoutSale_itemsInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
+  refund_items?: Prisma.RefundItemUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutSale_itemsInput = {
@@ -833,6 +859,93 @@ export type ProductUncheckedUpdateWithoutSale_itemsInput = {
   image_path?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  refund_items?: Prisma.RefundItemUncheckedUpdateManyWithoutProductNestedInput
+}
+
+export type ProductCreateWithoutRefund_itemsInput = {
+  name: string
+  sku?: string | null
+  barcode?: string | null
+  factory?: string | null
+  description?: string | null
+  cost_price?: number
+  sell_price?: number
+  stock_qty?: number
+  low_stock_threshold?: number | null
+  image_path?: string | null
+  created_at?: Date | string
+  updated_at?: Date | string
+  category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  sale_items?: Prisma.SaleItemCreateNestedManyWithoutProductInput
+}
+
+export type ProductUncheckedCreateWithoutRefund_itemsInput = {
+  id?: number
+  name: string
+  sku?: string | null
+  barcode?: string | null
+  category_id?: number | null
+  factory?: string | null
+  description?: string | null
+  cost_price?: number
+  sell_price?: number
+  stock_qty?: number
+  low_stock_threshold?: number | null
+  image_path?: string | null
+  created_at?: Date | string
+  updated_at?: Date | string
+  sale_items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutProductInput
+}
+
+export type ProductCreateOrConnectWithoutRefund_itemsInput = {
+  where: Prisma.ProductWhereUniqueInput
+  create: Prisma.XOR<Prisma.ProductCreateWithoutRefund_itemsInput, Prisma.ProductUncheckedCreateWithoutRefund_itemsInput>
+}
+
+export type ProductUpsertWithoutRefund_itemsInput = {
+  update: Prisma.XOR<Prisma.ProductUpdateWithoutRefund_itemsInput, Prisma.ProductUncheckedUpdateWithoutRefund_itemsInput>
+  create: Prisma.XOR<Prisma.ProductCreateWithoutRefund_itemsInput, Prisma.ProductUncheckedCreateWithoutRefund_itemsInput>
+  where?: Prisma.ProductWhereInput
+}
+
+export type ProductUpdateToOneWithWhereWithoutRefund_itemsInput = {
+  where?: Prisma.ProductWhereInput
+  data: Prisma.XOR<Prisma.ProductUpdateWithoutRefund_itemsInput, Prisma.ProductUncheckedUpdateWithoutRefund_itemsInput>
+}
+
+export type ProductUpdateWithoutRefund_itemsInput = {
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  sku?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  barcode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  factory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cost_price?: Prisma.FloatFieldUpdateOperationsInput | number
+  sell_price?: Prisma.FloatFieldUpdateOperationsInput | number
+  stock_qty?: Prisma.IntFieldUpdateOperationsInput | number
+  low_stock_threshold?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  image_path?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
+  sale_items?: Prisma.SaleItemUpdateManyWithoutProductNestedInput
+}
+
+export type ProductUncheckedUpdateWithoutRefund_itemsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  sku?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  barcode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  category_id?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  factory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cost_price?: Prisma.FloatFieldUpdateOperationsInput | number
+  sell_price?: Prisma.FloatFieldUpdateOperationsInput | number
+  stock_qty?: Prisma.IntFieldUpdateOperationsInput | number
+  low_stock_threshold?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  image_path?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sale_items?: Prisma.SaleItemUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductCreateManyCategoryInput = {
@@ -865,6 +978,7 @@ export type ProductUpdateWithoutCategoryInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sale_items?: Prisma.SaleItemUpdateManyWithoutProductNestedInput
+  refund_items?: Prisma.RefundItemUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutCategoryInput = {
@@ -882,6 +996,7 @@ export type ProductUncheckedUpdateWithoutCategoryInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sale_items?: Prisma.SaleItemUncheckedUpdateManyWithoutProductNestedInput
+  refund_items?: Prisma.RefundItemUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateManyWithoutCategoryInput = {
@@ -907,10 +1022,12 @@ export type ProductUncheckedUpdateManyWithoutCategoryInput = {
 
 export type ProductCountOutputType = {
   sale_items: number
+  refund_items: number
 }
 
 export type ProductCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   sale_items?: boolean | ProductCountOutputTypeCountSale_itemsArgs
+  refund_items?: boolean | ProductCountOutputTypeCountRefund_itemsArgs
 }
 
 /**
@@ -928,6 +1045,13 @@ export type ProductCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Exte
  */
 export type ProductCountOutputTypeCountSale_itemsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.SaleItemWhereInput
+}
+
+/**
+ * ProductCountOutputType without action
+ */
+export type ProductCountOutputTypeCountRefund_itemsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.RefundItemWhereInput
 }
 
 
@@ -948,6 +1072,7 @@ export type ProductSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   updated_at?: boolean
   category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
   sale_items?: boolean | Prisma.Product$sale_itemsArgs<ExtArgs>
+  refund_items?: boolean | Prisma.Product$refund_itemsArgs<ExtArgs>
   _count?: boolean | Prisma.ProductCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["product"]>
 
@@ -1008,6 +1133,7 @@ export type ProductOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
 export type ProductInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
   sale_items?: boolean | Prisma.Product$sale_itemsArgs<ExtArgs>
+  refund_items?: boolean | Prisma.Product$refund_itemsArgs<ExtArgs>
   _count?: boolean | Prisma.ProductCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type ProductIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1022,6 +1148,7 @@ export type $ProductPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
   objects: {
     category: Prisma.$CategoryPayload<ExtArgs> | null
     sale_items: Prisma.$SaleItemPayload<ExtArgs>[]
+    refund_items: Prisma.$RefundItemPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1434,6 +1561,7 @@ export interface Prisma__ProductClient<T, Null = never, ExtArgs extends runtime.
   readonly [Symbol.toStringTag]: "PrismaPromise"
   category<T extends Prisma.Product$categoryArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$categoryArgs<ExtArgs>>): Prisma.Prisma__CategoryClient<runtime.Types.Result.GetResult<Prisma.$CategoryPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   sale_items<T extends Prisma.Product$sale_itemsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$sale_itemsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SaleItemPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  refund_items<T extends Prisma.Product$refund_itemsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$refund_itemsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RefundItemPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1918,6 +2046,30 @@ export type Product$sale_itemsArgs<ExtArgs extends runtime.Types.Extensions.Inte
   take?: number
   skip?: number
   distinct?: Prisma.SaleItemScalarFieldEnum | Prisma.SaleItemScalarFieldEnum[]
+}
+
+/**
+ * Product.refund_items
+ */
+export type Product$refund_itemsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the RefundItem
+   */
+  select?: Prisma.RefundItemSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the RefundItem
+   */
+  omit?: Prisma.RefundItemOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.RefundItemInclude<ExtArgs> | null
+  where?: Prisma.RefundItemWhereInput
+  orderBy?: Prisma.RefundItemOrderByWithRelationInput | Prisma.RefundItemOrderByWithRelationInput[]
+  cursor?: Prisma.RefundItemWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.RefundItemScalarFieldEnum | Prisma.RefundItemScalarFieldEnum[]
 }
 
 /**

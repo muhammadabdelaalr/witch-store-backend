@@ -254,6 +254,36 @@ export const getSalesReport = async (req: Request, res: Response) => {
       });
     });
 
+    const refunds = await prisma.refund.findMany({
+      where: {
+        created_at: {
+          gte: startDate,
+          lte: endDate,
+        },
+        ...(sale_type && sale_type !== 'all' ? { sale: { sale_type: sale_type as any } } : {}),
+      },
+      include: {
+        items: true,
+      }
+    });
+
+    refunds.forEach((refund: any) => {
+      totalRevenue -= refund.total;
+
+      const dateStr = refund.created_at.toISOString().split('T')[0];
+      if (!dailyTotals[dateStr]) {
+        dailyTotals[dateStr] = { total: 0, count: 0 };
+      }
+      dailyTotals[dateStr].total -= refund.total;
+
+      refund.items.forEach((item: any) => {
+        if (productSales[item.product_id]) {
+          productSales[item.product_id].qty -= item.qty;
+          productSales[item.product_id].revenue -= item.unit_price * item.qty;
+        }
+      });
+    });
+
     const salesByDay = Object.keys(dailyTotals).map((date) => ({
       date,
       total: dailyTotals[date].total,
@@ -334,6 +364,36 @@ export const getProfitReport = async (req: Request, res: Response) => {
       dailyProfit[dateStr].revenue += sale.total;
       dailyProfit[dateStr].cost += saleCost;
       dailyProfit[dateStr].profit += (sale.total - saleCost);
+    });
+
+    const refunds = await prisma.refund.findMany({
+      where: {
+        created_at: {
+          gte: startDate,
+          lte: endDate,
+        },
+        ...(sale_type && sale_type !== 'all' ? { sale: { sale_type: sale_type as any } } : {}),
+      },
+      include: {
+        items: true,
+      }
+    });
+
+    refunds.forEach((refund: any) => {
+      totalRevenue -= refund.total;
+      let refundCost = 0;
+      refund.items.forEach((item: any) => {
+        refundCost += item.cost_price * item.qty;
+      });
+      costOfGoodsSold -= refundCost;
+
+      const dateStr = refund.created_at.toISOString().split('T')[0];
+      if (!dailyProfit[dateStr]) {
+        dailyProfit[dateStr] = { revenue: 0, cost: 0, profit: 0 };
+      }
+      dailyProfit[dateStr].revenue -= refund.total;
+      dailyProfit[dateStr].cost -= refundCost;
+      dailyProfit[dateStr].profit -= (refund.total - refundCost);
     });
 
     const grossProfit = totalRevenue - costOfGoodsSold;

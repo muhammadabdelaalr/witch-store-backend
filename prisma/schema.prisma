@@ -34,6 +34,7 @@ model Product {
   created_at          DateTime   @default(now())
   updated_at          DateTime   @updatedAt
   sale_items          SaleItem[]
+  refund_items        RefundItem[]
 
   @@index([barcode], map: "idx_products_barcode")
   @@index([sku], map: "idx_products_sku")
@@ -95,6 +96,7 @@ model Sale {
   seller_name    String?
   created_at     DateTime      @default(now())
   items          SaleItem[]
+  refunds        Refund[]
 
   @@index([created_at], map: "idx_sales_date")
   @@index([customer_id], map: "idx_sales_customer")
@@ -175,4 +177,32 @@ model User {
   created_at DateTime @default(now())
 
   @@map("users")
+}
+
+model Refund {
+  id          Int          @id @default(autoincrement())
+  sale_id     Int
+  sale        Sale         @relation(fields: [sale_id], references: [id])
+  total       Float
+  reason      String?
+  seller_name String?
+  created_at  DateTime     @default(now())
+  items       RefundItem[]
+
+  @@index([sale_id], map: "idx_refunds_sale")
+  @@map("refunds")
+}
+
+model RefundItem {
+  id         Int     @id @default(autoincrement())
+  refund_id  Int
+  refund     Refund  @relation(fields: [refund_id], references: [id], onDelete: Cascade)
+  product_id Int
+  product    Product @relation(fields: [product_id], references: [id])
+  qty        Int
+  unit_price Float
+  cost_price Float
+
+  @@index([refund_id], map: "idx_refund_items_refund")
+  @@map("refund_items")
 }

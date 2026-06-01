@@ -198,12 +198,16 @@ export const createSale = async (req: Request, res: Response) => {
 
 export const getAllSales = async (req: Request, res: Response) => {
   try {
-    const { from, to, customerId, sale_type, page = 1, limit = 10 } = req.query;
+    const { from, to, customerId, sale_type, invoiceId, page = 1, limit = 10 } = req.query;
     const pageInt = parseInt(page as string);
     const limitInt = parseInt(limit as string);
     const skip = (pageInt - 1) * limitInt;
 
     const where: any = {};
+
+    if (invoiceId) {
+      where.id = parseInt(invoiceId as string);
+    }
 
     if (customerId) {
       where.customer_id = parseInt(customerId as string);
@@ -237,6 +241,9 @@ export const getAllSales = async (req: Request, res: Response) => {
               },
             },
           },
+          refunds: {
+            select: { id: true, total: true }
+          }
         },
         orderBy: { created_at: 'desc' },
         skip,
@@ -281,6 +288,15 @@ export const getSaleById = async (req: Request, res: Response) => {
             product: true,
           },
         },
+        refunds: {
+          include: {
+            items: {
+              include: {
+                product: true
+              }
+            }
+          }
+        }
       },
     });
 

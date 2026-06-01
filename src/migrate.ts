@@ -7,7 +7,7 @@ async function runMigration() {
   console.log('--- Starting Data Migration from local SQLite to PostgreSQL ---');
   console.log('Connecting to SQLite:', dbPath);
   
-  let sqliteDb: Database.Database;
+  let sqliteDb: Database;
   try {
     sqliteDb = new Database(dbPath, { readonly: true });
   } catch (err: any) {

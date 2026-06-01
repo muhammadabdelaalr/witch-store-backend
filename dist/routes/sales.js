@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const sales_1 = require("../controllers/sales");
+const refunds_1 = require("../controllers/refunds");
 const router = (0, express_1.Router)();
 /**
  * @swagger
@@ -39,6 +40,9 @@ const router = (0, express_1.Router)();
  *                 type: number
  *               payment_method:
  *                 type: string
+ *               sale_type:
+ *                 type: string
+ *                 enum: [retail, wholesale]
  *               notes:
  *                 type: string
  *               seller_name:
@@ -85,4 +89,41 @@ router.get('/', sales_1.getAllSales);
  *           type: string
  */
 router.get('/:id', sales_1.getSaleById);
+/**
+ * @swagger
+ * /api/sales/{id}/refund:
+ *   post:
+ *     summary: Refund a sale
+ *     tags: [Refunds]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *               seller_name:
+ *                 type: string
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     product_id:
+ *                       type: integer
+ *                     qty:
+ *                       type: integer
+ *     responses:
+ *       201:
+ *         description: Success
+ */
+router.post('/:id/refund', refunds_1.createRefund);
 exports.default = router;

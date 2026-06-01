@@ -4,6 +4,7 @@ import {
   getAllSales,
   getSaleById,
 } from '../controllers/sales';
+import { createRefund } from '../controllers/refunds';
 
 const router = Router();
 
@@ -94,5 +95,43 @@ router.get('/', getAllSales);
  *           type: string
  */
 router.get('/:id', getSaleById);
+
+/**
+ * @swagger
+ * /api/sales/{id}/refund:
+ *   post:
+ *     summary: Refund a sale
+ *     tags: [Refunds]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *               seller_name:
+ *                 type: string
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     product_id:
+ *                       type: integer
+ *                     qty:
+ *                       type: integer
+ *     responses:
+ *       201:
+ *         description: Success
+ */
+router.post('/:id/refund', createRefund);
 
 export default router;

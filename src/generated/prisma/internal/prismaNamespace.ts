@@ -393,7 +393,9 @@ export const ModelName = {
   Expense: 'Expense',
   CustomerTransaction: 'CustomerTransaction',
   SupplierTransaction: 'SupplierTransaction',
-  User: 'User'
+  User: 'User',
+  Refund: 'Refund',
+  RefundItem: 'RefundItem'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -409,7 +411,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "category" | "product" | "customer" | "supplier" | "sale" | "saleItem" | "expense" | "customerTransaction" | "supplierTransaction" | "user"
+    modelProps: "category" | "product" | "customer" | "supplier" | "sale" | "saleItem" | "expense" | "customerTransaction" | "supplierTransaction" | "user" | "refund" | "refundItem"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1153,6 +1155,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    Refund: {
+      payload: Prisma.$RefundPayload<ExtArgs>
+      fields: Prisma.RefundFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RefundFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RefundFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        findFirst: {
+          args: Prisma.RefundFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RefundFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        findMany: {
+          args: Prisma.RefundFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>[]
+        }
+        create: {
+          args: Prisma.RefundCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        createMany: {
+          args: Prisma.RefundCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RefundCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>[]
+        }
+        delete: {
+          args: Prisma.RefundDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        update: {
+          args: Prisma.RefundUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        deleteMany: {
+          args: Prisma.RefundDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RefundUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RefundUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>[]
+        }
+        upsert: {
+          args: Prisma.RefundUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundPayload>
+        }
+        aggregate: {
+          args: Prisma.RefundAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRefund>
+        }
+        groupBy: {
+          args: Prisma.RefundGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RefundGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RefundCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RefundCountAggregateOutputType> | number
+        }
+      }
+    }
+    RefundItem: {
+      payload: Prisma.$RefundItemPayload<ExtArgs>
+      fields: Prisma.RefundItemFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RefundItemFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RefundItemFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload>
+        }
+        findFirst: {
+          args: Prisma.RefundItemFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RefundItemFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload>
+        }
+        findMany: {
+          args: Prisma.RefundItemFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload>[]
+        }
+        create: {
+          args: Prisma.RefundItemCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload>
+        }
+        createMany: {
+          args: Prisma.RefundItemCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RefundItemCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload>[]
+        }
+        delete: {
+          args: Prisma.RefundItemDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload>
+        }
+        update: {
+          args: Prisma.RefundItemUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload>
+        }
+        deleteMany: {
+          args: Prisma.RefundItemDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RefundItemUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RefundItemUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload>[]
+        }
+        upsert: {
+          args: Prisma.RefundItemUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RefundItemPayload>
+        }
+        aggregate: {
+          args: Prisma.RefundItemAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRefundItem>
+        }
+        groupBy: {
+          args: Prisma.RefundItemGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RefundItemGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RefundItemCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RefundItemCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1322,6 +1472,30 @@ export const UserScalarFieldEnum = {
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const RefundScalarFieldEnum = {
+  id: 'id',
+  sale_id: 'sale_id',
+  total: 'total',
+  reason: 'reason',
+  seller_name: 'seller_name',
+  created_at: 'created_at'
+} as const
+
+export type RefundScalarFieldEnum = (typeof RefundScalarFieldEnum)[keyof typeof RefundScalarFieldEnum]
+
+
+export const RefundItemScalarFieldEnum = {
+  id: 'id',
+  refund_id: 'refund_id',
+  product_id: 'product_id',
+  qty: 'qty',
+  unit_price: 'unit_price',
+  cost_price: 'cost_price'
+} as const
+
+export type RefundItemScalarFieldEnum = (typeof RefundItemScalarFieldEnum)[keyof typeof RefundItemScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1585,6 +1759,8 @@ export type GlobalOmitConfig = {
   customerTransaction?: Prisma.CustomerTransactionOmit
   supplierTransaction?: Prisma.SupplierTransactionOmit
   user?: Prisma.UserOmit
+  refund?: Prisma.RefundOmit
+  refundItem?: Prisma.RefundItemOmit
 }
 
 /* Types for Logging */

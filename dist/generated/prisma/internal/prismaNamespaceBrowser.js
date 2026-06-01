@@ -48,7 +48,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NullsOrder = exports.QueryMode = exports.SortOrder = exports.UserScalarFieldEnum = exports.SupplierTransactionScalarFieldEnum = exports.CustomerTransactionScalarFieldEnum = exports.ExpenseScalarFieldEnum = exports.SaleItemScalarFieldEnum = exports.SaleScalarFieldEnum = exports.SupplierScalarFieldEnum = exports.CustomerScalarFieldEnum = exports.ProductScalarFieldEnum = exports.CategoryScalarFieldEnum = exports.TransactionIsolationLevel = exports.ModelName = exports.AnyNull = exports.JsonNull = exports.DbNull = exports.NullTypes = exports.Decimal = void 0;
+exports.NullsOrder = exports.QueryMode = exports.SortOrder = exports.RefundItemScalarFieldEnum = exports.RefundScalarFieldEnum = exports.UserScalarFieldEnum = exports.SupplierTransactionScalarFieldEnum = exports.CustomerTransactionScalarFieldEnum = exports.ExpenseScalarFieldEnum = exports.SaleItemScalarFieldEnum = exports.SaleScalarFieldEnum = exports.SupplierScalarFieldEnum = exports.CustomerScalarFieldEnum = exports.ProductScalarFieldEnum = exports.CategoryScalarFieldEnum = exports.TransactionIsolationLevel = exports.ModelName = exports.AnyNull = exports.JsonNull = exports.DbNull = exports.NullTypes = exports.Decimal = void 0;
 const runtime = __importStar(require("@prisma/client/runtime/index-browser"));
 exports.Decimal = runtime.Decimal;
 exports.NullTypes = {
@@ -84,7 +84,9 @@ exports.ModelName = {
     Expense: 'Expense',
     CustomerTransaction: 'CustomerTransaction',
     SupplierTransaction: 'SupplierTransaction',
-    User: 'User'
+    User: 'User',
+    Refund: 'Refund',
+    RefundItem: 'RefundItem'
 };
 /*
  * Enums
@@ -142,6 +144,7 @@ exports.SaleScalarFieldEnum = {
     tax: 'tax',
     amount_paid: 'amount_paid',
     payment_method: 'payment_method',
+    sale_type: 'sale_type',
     notes: 'notes',
     seller_name: 'seller_name',
     created_at: 'created_at'
@@ -185,6 +188,22 @@ exports.UserScalarFieldEnum = {
     phone: 'phone',
     logs: 'logs',
     created_at: 'created_at'
+};
+exports.RefundScalarFieldEnum = {
+    id: 'id',
+    sale_id: 'sale_id',
+    total: 'total',
+    reason: 'reason',
+    seller_name: 'seller_name',
+    created_at: 'created_at'
+};
+exports.RefundItemScalarFieldEnum = {
+    id: 'id',
+    refund_id: 'refund_id',
+    product_id: 'product_id',
+    qty: 'qty',
+    unit_price: 'unit_price',
+    cost_price: 'cost_price'
 };
 exports.SortOrder = {
     asc: 'asc',
