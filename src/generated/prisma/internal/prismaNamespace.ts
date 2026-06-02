@@ -1400,6 +1400,7 @@ export type SupplierScalarFieldEnum = (typeof SupplierScalarFieldEnum)[keyof typ
 export const SaleScalarFieldEnum = {
   id: 'id',
   customer_id: 'customer_id',
+  customer_name: 'customer_name',
   total: 'total',
   discount: 'discount',
   tax: 'tax',

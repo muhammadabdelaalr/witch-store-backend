@@ -86,6 +86,7 @@ model Sale {
   id             Int           @id @default(autoincrement())
   customer_id    Int?
   customer       Customer?     @relation(fields: [customer_id], references: [id])
+  customer_name  String?
   total          Float
   discount       Float         @default(0)
   tax            Float         @default(0)

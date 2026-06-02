@@ -11,6 +11,7 @@ export const createSale = async (req: Request, res: Response) => {
       payment_method,
       notes,
       seller_name,
+      customer_name,
       items,
       sale_type = 'retail',
     } = req.body;
@@ -102,6 +103,7 @@ export const createSale = async (req: Request, res: Response) => {
       const newSale = await tx.sale.create({
         data: {
           ...(customerIdInt ? { customer: { connect: { id: customerIdInt } } } : {}),
+          customer_name: customer_name || null,
           total: grandTotal,
           discount: discountFloat,
           tax: taxFloat,
@@ -254,7 +256,7 @@ export const getAllSales = async (req: Request, res: Response) => {
 
     const formattedSales = sales.map((sale: any) => ({
       ...sale,
-      customer_name: sale.customer ? sale.customer.name : null,
+      customer_name: sale.customer ? sale.customer.name : sale.customer_name,
     }));
 
     const totalPages = Math.ceil(total / limitInt);
@@ -305,7 +307,12 @@ export const getSaleById = async (req: Request, res: Response) => {
       return;
     }
 
-    res.json(sale);
+    const formattedSale = {
+      ...sale,
+      customer_name: sale.customer ? sale.customer.name : sale.customer_name,
+    };
+
+    res.json(formattedSale);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
