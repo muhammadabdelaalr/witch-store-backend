@@ -5,6 +5,7 @@ import {
   updateCustomer,
   addCustomerTransaction,
   getCustomerTransactions,
+  deleteCustomer,
 } from '../controllers/customers';
 
 const router = Router();
@@ -84,6 +85,7 @@ router.post('/', createCustomer);
  *           type: string
  */
 router.put('/:id', updateCustomer);
+router.delete('/:id', deleteCustomer);
 
 /**
  * @swagger

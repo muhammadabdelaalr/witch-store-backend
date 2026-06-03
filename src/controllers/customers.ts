@@ -48,8 +48,8 @@ export const createCustomer = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const { name, phone, email, address, balance } = req.body;
 
-    if (!name) {
-      res.status(400).json({ error: 'Customer name is required' });
+    if (!name || !phone) {
+      res.status(400).json({ error: 'Customer name and phone number are required' });
       return;
     }
 
@@ -191,6 +191,41 @@ export const getCustomerTransactions = async (req: Request, res: Response) => {
     });
 
     res.json(transactions);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const deleteCustomer = async (req: Request, res: Response) => {
+  try {
+    const username = getUsername(req);
+    const id = parseInt(req.params.id as string);
+    if (isNaN(id)) {
+      res.status(400).json({ error: 'Invalid customer ID' });
+      return;
+    }
+
+    await prisma.$transaction(async (tx: any) => {
+      // 1. Delete all transactions of the customer
+      await tx.customerTransaction.deleteMany({
+        where: { customer_id: id },
+      });
+
+      // 2. Disconnect customer from all sales records
+      await tx.sale.updateMany({
+        where: { customer_id: id },
+        data: { customer_id: null },
+      });
+
+      // 3. Delete customer
+      await tx.customer.delete({
+        where: { id },
+      });
+    });
+
+    await logUserActivity(username, 'DELETE_CUSTOMER', { id });
+
+    res.json({ message: 'Customer deleted successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
