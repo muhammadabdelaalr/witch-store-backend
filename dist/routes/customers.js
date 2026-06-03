@@ -76,6 +76,7 @@ router.post('/', customers_1.createCustomer);
  *           type: string
  */
 router.put('/:id', customers_1.updateCustomer);
+router.delete('/:id', customers_1.deleteCustomer);
 /**
  * @swagger
  * /api/customers/transaction:

@@ -52,6 +52,7 @@ model Customer {
   created_at   DateTime              @default(now())
   sales        Sale[]
   transactions CustomerTransaction[]
+  installment_plans InstallmentPlan[]
 
   @@map("customers")
 }
@@ -75,6 +76,7 @@ enum PaymentMethod {
   wallet
   card
   credit
+  installment
 }
 
 enum SaleType {
@@ -98,6 +100,7 @@ model Sale {
   created_at     DateTime      @default(now())
   items          SaleItem[]
   refunds        Refund[]
+  installment_plan InstallmentPlan?
 
   @@index([created_at], map: "idx_sales_date")
   @@index([customer_id], map: "idx_sales_customer")
@@ -207,3 +210,36 @@ model RefundItem {
   @@index([refund_id], map: "idx_refund_items_refund")
   @@map("refund_items")
 }
+
+model InstallmentPlan {
+  id                 Int           @id @default(autoincrement())
+  sale_id            Int           @unique
+  sale               Sale          @relation(fields: [sale_id], references: [id], onDelete: Cascade)
+  customer_id        Int
+  customer           Customer      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  total_amount       Float         // إجمالي المبلغ المقسط (المتبقي بعد المقدم)
+  down_payment       Float         @default(0) // المقدم المدفوع
+  installments_count Int           // عدد الأقساط
+  status             String        // 'pending' | 'completed' | 'overdue'
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+  installments       Installment[]
+
+  @@map("installment_plans")
+}
+
+model Installment {
+  id          Int             @id @default(autoincrement())
+  plan_id     Int
+  plan        InstallmentPlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
+  due_date    DateTime        // تاريخ استحقاق القسط
+  amount      Float           // قيمة القسط الواحد
+  amount_paid Float           @default(0) // المبلغ المسدد من القسط
+  status      String          // 'pending' | 'paid' | 'overdue'
+  paid_at     DateTime?
+  created_at  DateTime        @default(now())
+  updated_at  DateTime        @updatedAt
+
+  @@map("installments")
+}
+

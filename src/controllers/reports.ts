@@ -163,6 +163,30 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5);
 
+    // Upcoming installments (due within the next 7 days, status is pending)
+    const next7Days = new Date();
+    next7Days.setDate(next7Days.getDate() + 7);
+    
+    const upcomingInstallmentsCount = await prisma.installment.count({
+      where: {
+        status: 'pending',
+        due_date: {
+          gte: new Date(),
+          lte: next7Days,
+        },
+      },
+    });
+
+    // Overdue installments (due date before now, status is pending)
+    const overdueInstallmentsCount = await prisma.installment.count({
+      where: {
+        status: 'pending',
+        due_date: {
+          lt: new Date(),
+        },
+      },
+    });
+
     res.json({
       todayRevenue,
       todayTransactionsCount,
@@ -170,6 +194,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       lowStockCount,
       weeklyChart,
       topSelling,
+      upcomingInstallmentsCount,
+      overdueInstallmentsCount,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -216,6 +242,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
       wallet: { count: 0, total: 0 },
       card: { count: 0, total: 0 },
       credit: { count: 0, total: 0 },
+      installment: { count: 0, total: 0 },
     };
 
     sales.forEach((sale: any) => {

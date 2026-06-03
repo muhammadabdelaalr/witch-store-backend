@@ -16,6 +16,7 @@ const sales_1 = __importDefault(require("./routes/sales"));
 const expenses_1 = __importDefault(require("./routes/expenses"));
 const reports_1 = __importDefault(require("./routes/reports"));
 const users_1 = __importDefault(require("./routes/users"));
+const installments_1 = __importDefault(require("./routes/installments"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
@@ -45,6 +46,7 @@ app.use("/api/sales", sales_1.default);
 app.use("/api/expenses", expenses_1.default);
 app.use("/api/reports", reports_1.default);
 app.use("/api/users", users_1.default);
+app.use("/api/installments", installments_1.default);
 // Global Error Handler
 app.use((err, req, res, next) => {
     console.error("[Error] Handler caught exception:", err);

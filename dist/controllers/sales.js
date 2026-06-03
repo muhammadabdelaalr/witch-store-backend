@@ -4,7 +4,7 @@ exports.getSaleById = exports.getAllSales = exports.createSale = void 0;
 const prisma_1 = require("../prisma");
 const createSale = async (req, res) => {
     try {
-        const { customer_id, discount = 0, tax = 0, amount_paid, payment_method, notes, seller_name, items, sale_type = 'retail', } = req.body;
+        const { customer_id, discount = 0, tax = 0, amount_paid, payment_method, notes, seller_name, customer_name, items, sale_type = 'retail', } = req.body;
         if (!items || !Array.isArray(items) || items.length === 0) {
             res.status(400).json({ error: 'Sale must contain at least one item' });
             return;
@@ -15,6 +15,10 @@ const createSale = async (req, res) => {
         }
         if (!payment_method) {
             res.status(400).json({ error: 'Payment method is required' });
+            return;
+        }
+        if (payment_method === 'installment' && !customer_id) {
+            res.status(400).json({ error: 'Customer is required for installment sales' });
             return;
         }
         const amountPaidFloat = parseFloat(amount_paid);
@@ -73,6 +77,7 @@ const createSale = async (req, res) => {
             const newSale = await tx.sale.create({
                 data: {
                     ...(customerIdInt ? { customer: { connect: { id: customerIdInt } } } : {}),
+                    customer_name: customer_name || null,
                     total: grandTotal,
                     discount: discountFloat,
                     tax: taxFloat,
@@ -96,7 +101,80 @@ const createSale = async (req, res) => {
                 });
             }
             // 5. Update Customer Ledger if Customer is attached
-            if (customerIdInt) {
+            if (payment_method === 'installment') {
+                if (!customerIdInt) {
+                    throw new Error('Customer is required for installment sales');
+                }
+                const unpaid = grandTotal - amountPaidFloat;
+                if (unpaid <= 0) {
+                    throw new Error('Down payment cannot be greater than or equal to the total sale amount for installment sales');
+                }
+                // Create customer ledger transaction
+                await tx.customerTransaction.create({
+                    data: {
+                        customer_id: customerIdInt,
+                        type: 'debt',
+                        amount: unpaid,
+                        notes: `Auto-generated from Installment Sale #${newSale.id}`,
+                    },
+                });
+                // Update customer balance
+                await tx.customer.update({
+                    where: { id: customerIdInt },
+                    data: {
+                        balance: {
+                            increment: unpaid,
+                        },
+                    },
+                });
+                // Create Installment Plan
+                const installmentsCountInt = parseInt(req.body.installments_count || 3);
+                const installmentPlan = await tx.installmentPlan.create({
+                    data: {
+                        sale_id: newSale.id,
+                        customer_id: customerIdInt,
+                        total_amount: unpaid,
+                        down_payment: amountPaidFloat,
+                        installments_count: installmentsCountInt,
+                        status: 'pending',
+                    },
+                });
+                // Generate Installments
+                const frequency = req.body.installment_frequency || 'monthly';
+                const startDateStr = req.body.installment_start_date;
+                let baseDate = startDateStr ? new Date(startDateStr) : new Date();
+                if (isNaN(baseDate.getTime())) {
+                    baseDate = new Date();
+                }
+                const installmentAmount = parseFloat((unpaid / installmentsCountInt).toFixed(2));
+                let calculatedSum = 0;
+                for (let i = 0; i < installmentsCountInt; i++) {
+                    const dueDate = new Date(baseDate);
+                    if (frequency === 'weekly') {
+                        dueDate.setDate(baseDate.getDate() + i * 7);
+                    }
+                    else {
+                        dueDate.setMonth(baseDate.getMonth() + i);
+                    }
+                    let currentAmount = installmentAmount;
+                    if (i === installmentsCountInt - 1) {
+                        currentAmount = parseFloat((unpaid - calculatedSum).toFixed(2));
+                    }
+                    else {
+                        calculatedSum += installmentAmount;
+                    }
+                    await tx.installment.create({
+                        data: {
+                            plan_id: installmentPlan.id,
+                            due_date: dueDate,
+                            amount: currentAmount,
+                            amount_paid: 0,
+                            status: 'pending',
+                        },
+                    });
+                }
+            }
+            else if (customerIdInt) {
                 const unpaid = grandTotal - amountPaidFloat;
                 if (Math.abs(unpaid) > 0.001) {
                     const type = unpaid > 0 ? 'debt' : 'payment';
@@ -162,11 +240,14 @@ const createSale = async (req, res) => {
 exports.createSale = createSale;
 const getAllSales = async (req, res) => {
     try {
-        const { from, to, customerId, sale_type, page = 1, limit = 10 } = req.query;
+        const { from, to, customerId, sale_type, invoiceId, page = 1, limit = 10 } = req.query;
         const pageInt = parseInt(page);
         const limitInt = parseInt(limit);
         const skip = (pageInt - 1) * limitInt;
         const where = {};
+        if (invoiceId) {
+            where.id = parseInt(invoiceId);
+        }
         if (customerId) {
             where.customer_id = parseInt(customerId);
         }
@@ -196,6 +277,9 @@ const getAllSales = async (req, res) => {
                             },
                         },
                     },
+                    refunds: {
+                        select: { id: true, total: true }
+                    }
                 },
                 orderBy: { created_at: 'desc' },
                 skip,
@@ -205,7 +289,7 @@ const getAllSales = async (req, res) => {
         ]);
         const formattedSales = sales.map((sale) => ({
             ...sale,
-            customer_name: sale.customer ? sale.customer.name : null,
+            customer_name: sale.customer ? sale.customer.name : sale.customer_name,
         }));
         const totalPages = Math.ceil(total / limitInt);
         res.json({
@@ -237,13 +321,26 @@ const getSaleById = async (req, res) => {
                         product: true,
                     },
                 },
+                refunds: {
+                    include: {
+                        items: {
+                            include: {
+                                product: true
+                            }
+                        }
+                    }
+                }
             },
         });
         if (!sale) {
             res.status(404).json({ error: 'Sale invoice not found' });
             return;
         }
-        res.json(sale);
+        const formattedSale = {
+            ...sale,
+            customer_name: sale.customer ? sale.customer.name : sale.customer_name,
+        };
+        res.json(formattedSale);
     }
     catch (error) {
         res.status(500).json({ error: error.message });

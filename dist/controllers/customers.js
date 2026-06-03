@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCustomerTransactions = exports.addCustomerTransaction = exports.updateCustomer = exports.createCustomer = exports.getAllCustomers = void 0;
+exports.deleteCustomer = exports.getCustomerTransactions = exports.addCustomerTransaction = exports.updateCustomer = exports.createCustomer = exports.getAllCustomers = void 0;
 const prisma_1 = require("../prisma");
 const getAllCustomers = async (req, res) => {
     try {
@@ -44,8 +44,8 @@ const createCustomer = async (req, res) => {
     try {
         const username = (0, prisma_1.getUsername)(req);
         const { name, phone, email, address, balance } = req.body;
-        if (!name) {
-            res.status(400).json({ error: 'Customer name is required' });
+        if (!name || !phone) {
+            res.status(400).json({ error: 'Customer name and phone number are required' });
             return;
         }
         const customer = await prisma_1.prisma.customer.create({
@@ -175,3 +175,34 @@ const getCustomerTransactions = async (req, res) => {
     }
 };
 exports.getCustomerTransactions = getCustomerTransactions;
+const deleteCustomer = async (req, res) => {
+    try {
+        const username = (0, prisma_1.getUsername)(req);
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            res.status(400).json({ error: 'Invalid customer ID' });
+            return;
+        }
+        await prisma_1.prisma.$transaction(async (tx) => {
+            // 1. Delete all transactions of the customer
+            await tx.customerTransaction.deleteMany({
+                where: { customer_id: id },
+            });
+            // 2. Disconnect customer from all sales records
+            await tx.sale.updateMany({
+                where: { customer_id: id },
+                data: { customer_id: null },
+            });
+            // 3. Delete customer
+            await tx.customer.delete({
+                where: { id },
+            });
+        });
+        await (0, prisma_1.logUserActivity)(username, 'DELETE_CUSTOMER', { id });
+        res.json({ message: 'Customer deleted successfully' });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+exports.deleteCustomer = deleteCustomer;

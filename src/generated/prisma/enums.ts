@@ -14,7 +14,8 @@ export const PaymentMethod = {
   instapay: 'instapay',
   wallet: 'wallet',
   card: 'card',
-  credit: 'credit'
+  credit: 'credit',
+  installment: 'installment'
 } as const
 
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod]

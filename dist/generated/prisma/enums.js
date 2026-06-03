@@ -15,7 +15,8 @@ exports.PaymentMethod = {
     instapay: 'instapay',
     wallet: 'wallet',
     card: 'card',
-    credit: 'credit'
+    credit: 'credit',
+    installment: 'installment'
 };
 exports.SaleType = {
     retail: 'retail',

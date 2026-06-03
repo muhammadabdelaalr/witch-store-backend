@@ -35,11 +35,12 @@ const createRefund = async (req, res) => {
                     costPrice: saleItem.cost_price,
                 };
             }
-            // Deduct already refunded items
+            // Deduct already refunded items (or lock them out completely based on the new rule)
             for (const pastRefund of sale.refunds) {
                 for (const refundItem of pastRefund.items) {
                     if (maxRefundable[refundItem.product_id]) {
-                        maxRefundable[refundItem.product_id].maxQty -= refundItem.qty;
+                        // Business Rule: If a product was refunded once, it cannot be refunded again.
+                        maxRefundable[refundItem.product_id].maxQty = 0;
                     }
                 }
             }

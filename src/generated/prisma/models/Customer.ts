@@ -238,6 +238,7 @@ export type CustomerWhereInput = {
   created_at?: Prisma.DateTimeFilter<"Customer"> | Date | string
   sales?: Prisma.SaleListRelationFilter
   transactions?: Prisma.CustomerTransactionListRelationFilter
+  installment_plans?: Prisma.InstallmentPlanListRelationFilter
 }
 
 export type CustomerOrderByWithRelationInput = {
@@ -250,6 +251,7 @@ export type CustomerOrderByWithRelationInput = {
   created_at?: Prisma.SortOrder
   sales?: Prisma.SaleOrderByRelationAggregateInput
   transactions?: Prisma.CustomerTransactionOrderByRelationAggregateInput
+  installment_plans?: Prisma.InstallmentPlanOrderByRelationAggregateInput
 }
 
 export type CustomerWhereUniqueInput = Prisma.AtLeast<{
@@ -265,6 +267,7 @@ export type CustomerWhereUniqueInput = Prisma.AtLeast<{
   created_at?: Prisma.DateTimeFilter<"Customer"> | Date | string
   sales?: Prisma.SaleListRelationFilter
   transactions?: Prisma.CustomerTransactionListRelationFilter
+  installment_plans?: Prisma.InstallmentPlanListRelationFilter
 }, "id">
 
 export type CustomerOrderByWithAggregationInput = {
@@ -304,6 +307,7 @@ export type CustomerCreateInput = {
   created_at?: Date | string
   sales?: Prisma.SaleCreateNestedManyWithoutCustomerInput
   transactions?: Prisma.CustomerTransactionCreateNestedManyWithoutCustomerInput
+  installment_plans?: Prisma.InstallmentPlanCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerUncheckedCreateInput = {
@@ -316,6 +320,7 @@ export type CustomerUncheckedCreateInput = {
   created_at?: Date | string
   sales?: Prisma.SaleUncheckedCreateNestedManyWithoutCustomerInput
   transactions?: Prisma.CustomerTransactionUncheckedCreateNestedManyWithoutCustomerInput
+  installment_plans?: Prisma.InstallmentPlanUncheckedCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerUpdateInput = {
@@ -327,6 +332,7 @@ export type CustomerUpdateInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sales?: Prisma.SaleUpdateManyWithoutCustomerNestedInput
   transactions?: Prisma.CustomerTransactionUpdateManyWithoutCustomerNestedInput
+  installment_plans?: Prisma.InstallmentPlanUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerUncheckedUpdateInput = {
@@ -339,6 +345,7 @@ export type CustomerUncheckedUpdateInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sales?: Prisma.SaleUncheckedUpdateManyWithoutCustomerNestedInput
   transactions?: Prisma.CustomerTransactionUncheckedUpdateManyWithoutCustomerNestedInput
+  installment_plans?: Prisma.InstallmentPlanUncheckedUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerCreateManyInput = {
@@ -450,6 +457,20 @@ export type CustomerUpdateOneRequiredWithoutTransactionsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.CustomerUpdateToOneWithWhereWithoutTransactionsInput, Prisma.CustomerUpdateWithoutTransactionsInput>, Prisma.CustomerUncheckedUpdateWithoutTransactionsInput>
 }
 
+export type CustomerCreateNestedOneWithoutInstallment_plansInput = {
+  create?: Prisma.XOR<Prisma.CustomerCreateWithoutInstallment_plansInput, Prisma.CustomerUncheckedCreateWithoutInstallment_plansInput>
+  connectOrCreate?: Prisma.CustomerCreateOrConnectWithoutInstallment_plansInput
+  connect?: Prisma.CustomerWhereUniqueInput
+}
+
+export type CustomerUpdateOneRequiredWithoutInstallment_plansNestedInput = {
+  create?: Prisma.XOR<Prisma.CustomerCreateWithoutInstallment_plansInput, Prisma.CustomerUncheckedCreateWithoutInstallment_plansInput>
+  connectOrCreate?: Prisma.CustomerCreateOrConnectWithoutInstallment_plansInput
+  upsert?: Prisma.CustomerUpsertWithoutInstallment_plansInput
+  connect?: Prisma.CustomerWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.CustomerUpdateToOneWithWhereWithoutInstallment_plansInput, Prisma.CustomerUpdateWithoutInstallment_plansInput>, Prisma.CustomerUncheckedUpdateWithoutInstallment_plansInput>
+}
+
 export type CustomerCreateWithoutSalesInput = {
   name: string
   phone?: string | null
@@ -458,6 +479,7 @@ export type CustomerCreateWithoutSalesInput = {
   balance?: number
   created_at?: Date | string
   transactions?: Prisma.CustomerTransactionCreateNestedManyWithoutCustomerInput
+  installment_plans?: Prisma.InstallmentPlanCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerUncheckedCreateWithoutSalesInput = {
@@ -469,6 +491,7 @@ export type CustomerUncheckedCreateWithoutSalesInput = {
   balance?: number
   created_at?: Date | string
   transactions?: Prisma.CustomerTransactionUncheckedCreateNestedManyWithoutCustomerInput
+  installment_plans?: Prisma.InstallmentPlanUncheckedCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerCreateOrConnectWithoutSalesInput = {
@@ -495,6 +518,7 @@ export type CustomerUpdateWithoutSalesInput = {
   balance?: Prisma.FloatFieldUpdateOperationsInput | number
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   transactions?: Prisma.CustomerTransactionUpdateManyWithoutCustomerNestedInput
+  installment_plans?: Prisma.InstallmentPlanUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerUncheckedUpdateWithoutSalesInput = {
@@ -506,6 +530,7 @@ export type CustomerUncheckedUpdateWithoutSalesInput = {
   balance?: Prisma.FloatFieldUpdateOperationsInput | number
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   transactions?: Prisma.CustomerTransactionUncheckedUpdateManyWithoutCustomerNestedInput
+  installment_plans?: Prisma.InstallmentPlanUncheckedUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerCreateWithoutTransactionsInput = {
@@ -516,6 +541,7 @@ export type CustomerCreateWithoutTransactionsInput = {
   balance?: number
   created_at?: Date | string
   sales?: Prisma.SaleCreateNestedManyWithoutCustomerInput
+  installment_plans?: Prisma.InstallmentPlanCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerUncheckedCreateWithoutTransactionsInput = {
@@ -527,6 +553,7 @@ export type CustomerUncheckedCreateWithoutTransactionsInput = {
   balance?: number
   created_at?: Date | string
   sales?: Prisma.SaleUncheckedCreateNestedManyWithoutCustomerInput
+  installment_plans?: Prisma.InstallmentPlanUncheckedCreateNestedManyWithoutCustomerInput
 }
 
 export type CustomerCreateOrConnectWithoutTransactionsInput = {
@@ -553,6 +580,7 @@ export type CustomerUpdateWithoutTransactionsInput = {
   balance?: Prisma.FloatFieldUpdateOperationsInput | number
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sales?: Prisma.SaleUpdateManyWithoutCustomerNestedInput
+  installment_plans?: Prisma.InstallmentPlanUpdateManyWithoutCustomerNestedInput
 }
 
 export type CustomerUncheckedUpdateWithoutTransactionsInput = {
@@ -564,6 +592,69 @@ export type CustomerUncheckedUpdateWithoutTransactionsInput = {
   balance?: Prisma.FloatFieldUpdateOperationsInput | number
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sales?: Prisma.SaleUncheckedUpdateManyWithoutCustomerNestedInput
+  installment_plans?: Prisma.InstallmentPlanUncheckedUpdateManyWithoutCustomerNestedInput
+}
+
+export type CustomerCreateWithoutInstallment_plansInput = {
+  name: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  balance?: number
+  created_at?: Date | string
+  sales?: Prisma.SaleCreateNestedManyWithoutCustomerInput
+  transactions?: Prisma.CustomerTransactionCreateNestedManyWithoutCustomerInput
+}
+
+export type CustomerUncheckedCreateWithoutInstallment_plansInput = {
+  id?: number
+  name: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  balance?: number
+  created_at?: Date | string
+  sales?: Prisma.SaleUncheckedCreateNestedManyWithoutCustomerInput
+  transactions?: Prisma.CustomerTransactionUncheckedCreateNestedManyWithoutCustomerInput
+}
+
+export type CustomerCreateOrConnectWithoutInstallment_plansInput = {
+  where: Prisma.CustomerWhereUniqueInput
+  create: Prisma.XOR<Prisma.CustomerCreateWithoutInstallment_plansInput, Prisma.CustomerUncheckedCreateWithoutInstallment_plansInput>
+}
+
+export type CustomerUpsertWithoutInstallment_plansInput = {
+  update: Prisma.XOR<Prisma.CustomerUpdateWithoutInstallment_plansInput, Prisma.CustomerUncheckedUpdateWithoutInstallment_plansInput>
+  create: Prisma.XOR<Prisma.CustomerCreateWithoutInstallment_plansInput, Prisma.CustomerUncheckedCreateWithoutInstallment_plansInput>
+  where?: Prisma.CustomerWhereInput
+}
+
+export type CustomerUpdateToOneWithWhereWithoutInstallment_plansInput = {
+  where?: Prisma.CustomerWhereInput
+  data: Prisma.XOR<Prisma.CustomerUpdateWithoutInstallment_plansInput, Prisma.CustomerUncheckedUpdateWithoutInstallment_plansInput>
+}
+
+export type CustomerUpdateWithoutInstallment_plansInput = {
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  balance?: Prisma.FloatFieldUpdateOperationsInput | number
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sales?: Prisma.SaleUpdateManyWithoutCustomerNestedInput
+  transactions?: Prisma.CustomerTransactionUpdateManyWithoutCustomerNestedInput
+}
+
+export type CustomerUncheckedUpdateWithoutInstallment_plansInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  balance?: Prisma.FloatFieldUpdateOperationsInput | number
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sales?: Prisma.SaleUncheckedUpdateManyWithoutCustomerNestedInput
+  transactions?: Prisma.CustomerTransactionUncheckedUpdateManyWithoutCustomerNestedInput
 }
 
 
@@ -574,11 +665,13 @@ export type CustomerUncheckedUpdateWithoutTransactionsInput = {
 export type CustomerCountOutputType = {
   sales: number
   transactions: number
+  installment_plans: number
 }
 
 export type CustomerCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   sales?: boolean | CustomerCountOutputTypeCountSalesArgs
   transactions?: boolean | CustomerCountOutputTypeCountTransactionsArgs
+  installment_plans?: boolean | CustomerCountOutputTypeCountInstallment_plansArgs
 }
 
 /**
@@ -605,6 +698,13 @@ export type CustomerCountOutputTypeCountTransactionsArgs<ExtArgs extends runtime
   where?: Prisma.CustomerTransactionWhereInput
 }
 
+/**
+ * CustomerCountOutputType without action
+ */
+export type CustomerCountOutputTypeCountInstallment_plansArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.InstallmentPlanWhereInput
+}
+
 
 export type CustomerSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -616,6 +716,7 @@ export type CustomerSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   created_at?: boolean
   sales?: boolean | Prisma.Customer$salesArgs<ExtArgs>
   transactions?: boolean | Prisma.Customer$transactionsArgs<ExtArgs>
+  installment_plans?: boolean | Prisma.Customer$installment_plansArgs<ExtArgs>
   _count?: boolean | Prisma.CustomerCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["customer"]>
 
@@ -653,6 +754,7 @@ export type CustomerOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs =
 export type CustomerInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   sales?: boolean | Prisma.Customer$salesArgs<ExtArgs>
   transactions?: boolean | Prisma.Customer$transactionsArgs<ExtArgs>
+  installment_plans?: boolean | Prisma.Customer$installment_plansArgs<ExtArgs>
   _count?: boolean | Prisma.CustomerCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type CustomerIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -663,6 +765,7 @@ export type $CustomerPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
   objects: {
     sales: Prisma.$SalePayload<ExtArgs>[]
     transactions: Prisma.$CustomerTransactionPayload<ExtArgs>[]
+    installment_plans: Prisma.$InstallmentPlanPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1068,6 +1171,7 @@ export interface Prisma__CustomerClient<T, Null = never, ExtArgs extends runtime
   readonly [Symbol.toStringTag]: "PrismaPromise"
   sales<T extends Prisma.Customer$salesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Customer$salesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SalePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   transactions<T extends Prisma.Customer$transactionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Customer$transactionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CustomerTransactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  installment_plans<T extends Prisma.Customer$installment_plansArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Customer$installment_plansArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$InstallmentPlanPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1542,6 +1646,30 @@ export type Customer$transactionsArgs<ExtArgs extends runtime.Types.Extensions.I
   take?: number
   skip?: number
   distinct?: Prisma.CustomerTransactionScalarFieldEnum | Prisma.CustomerTransactionScalarFieldEnum[]
+}
+
+/**
+ * Customer.installment_plans
+ */
+export type Customer$installment_plansArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the InstallmentPlan
+   */
+  select?: Prisma.InstallmentPlanSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the InstallmentPlan
+   */
+  omit?: Prisma.InstallmentPlanOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.InstallmentPlanInclude<ExtArgs> | null
+  where?: Prisma.InstallmentPlanWhereInput
+  orderBy?: Prisma.InstallmentPlanOrderByWithRelationInput | Prisma.InstallmentPlanOrderByWithRelationInput[]
+  cursor?: Prisma.InstallmentPlanWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.InstallmentPlanScalarFieldEnum | Prisma.InstallmentPlanScalarFieldEnum[]
 }
 
 /**
