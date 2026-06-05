@@ -15,8 +15,12 @@ export const prisma = new PrismaClient({ adapter });
 // Helper to get username from request headers safely
 export function getUsername(req: { headers: Record<string, string | string[] | undefined> }): string {
   const header = req.headers['x-user-name'];
-  if (Array.isArray(header)) return header[0] || 'System';
-  return header || 'System';
+  const rawUsername = Array.isArray(header) ? (header[0] || 'System') : (header || 'System');
+  try {
+    return decodeURIComponent(rawUsername);
+  } catch {
+    return rawUsername;
+  }
 }
 
 // Helper functions for user logging

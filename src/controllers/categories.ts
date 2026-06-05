@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../prisma';
+import { prisma, logUserActivity, getUsername } from '../prisma';
 
 export const getAllCategories = async (req: Request, res: Response) => {
   try {
@@ -16,6 +16,7 @@ export const getAllCategories = async (req: Request, res: Response) => {
 
 export const createCategory = async (req: Request, res: Response) => {
   try {
+    const username = getUsername(req);
     const { name } = req.body;
     if (!name) {
       res.status(400).json({ error: 'Category name is required' });
@@ -23,6 +24,10 @@ export const createCategory = async (req: Request, res: Response) => {
     }
     const category = await prisma.category.create({
       data: { name },
+    });
+    await logUserActivity(username, 'CREATE_CATEGORY', {
+      id: category.id,
+      name: category.name,
     });
     res.status(201).json(category);
   } catch (error: any) {

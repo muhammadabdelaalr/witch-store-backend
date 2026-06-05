@@ -46,6 +46,7 @@ const getAllExpenses = async (req, res) => {
 exports.getAllExpenses = getAllExpenses;
 const createExpense = async (req, res) => {
     try {
+        const username = (0, prisma_1.getUsername)(req);
         const { category_id, category, amount, description, date } = req.body;
         if (!category || amount === undefined || !date) {
             res.status(400).json({ error: 'Category, amount, and date are required' });
@@ -60,6 +61,11 @@ const createExpense = async (req, res) => {
                 date, // Expected format YYYY-MM-DD
             },
         });
+        await (0, prisma_1.logUserActivity)(username, 'CREATE_EXPENSE', {
+            id: expense.id,
+            amount: expense.amount,
+            category: expense.category,
+        });
         res.status(201).json(expense);
     }
     catch (error) {
@@ -69,6 +75,7 @@ const createExpense = async (req, res) => {
 exports.createExpense = createExpense;
 const updateExpense = async (req, res) => {
     try {
+        const username = (0, prisma_1.getUsername)(req);
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
             res.status(400).json({ error: 'Invalid expense ID' });
@@ -91,6 +98,11 @@ const updateExpense = async (req, res) => {
             where: { id },
             data: updateData,
         });
+        await (0, prisma_1.logUserActivity)(username, 'UPDATE_EXPENSE', {
+            id: expense.id,
+            amount: expense.amount,
+            category: expense.category,
+        });
         res.json(expense);
     }
     catch (error) {
@@ -100,13 +112,26 @@ const updateExpense = async (req, res) => {
 exports.updateExpense = updateExpense;
 const deleteExpense = async (req, res) => {
     try {
+        const username = (0, prisma_1.getUsername)(req);
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
             res.status(400).json({ error: 'Invalid expense ID' });
             return;
         }
+        const expense = await prisma_1.prisma.expense.findUnique({
+            where: { id },
+        });
+        if (!expense) {
+            res.status(404).json({ error: 'Expense not found' });
+            return;
+        }
         await prisma_1.prisma.expense.delete({
             where: { id },
+        });
+        await (0, prisma_1.logUserActivity)(username, 'DELETE_EXPENSE', {
+            id,
+            amount: expense.amount,
+            category: expense.category,
         });
         res.status(204).send();
     }

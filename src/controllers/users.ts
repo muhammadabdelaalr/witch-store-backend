@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../prisma';
+import { prisma, logUserActivity, getUsername } from '../prisma';
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -43,6 +43,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
 export const createUser = async (req: Request, res: Response) => {
   try {
+    const username = getUsername(req);
     const { name, phone } = req.body;
 
     if (!name || !phone) {
@@ -58,6 +59,8 @@ export const createUser = async (req: Request, res: Response) => {
       },
     });
 
+    await logUserActivity(username, 'CREATE_USER', { name: user.name });
+
     res.status(201).json(user);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -66,6 +69,7 @@ export const createUser = async (req: Request, res: Response) => {
 
 export const updateUser = async (req: Request, res: Response) => {
   try {
+    const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid user ID' });
@@ -82,6 +86,8 @@ export const updateUser = async (req: Request, res: Response) => {
       data: updateData,
     });
 
+    await logUserActivity(username, 'UPDATE_USER', { id: user.id, name: user.name, changes: req.body });
+
     res.json(user);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -90,15 +96,27 @@ export const updateUser = async (req: Request, res: Response) => {
 
 export const deleteUser = async (req: Request, res: Response) => {
   try {
+    const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid user ID' });
       return;
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
     await prisma.user.delete({
       where: { id },
     });
+
+    await logUserActivity(username, 'DELETE_USER', { id, name: user.name });
 
     res.status(204).send();
   } catch (error: any) {

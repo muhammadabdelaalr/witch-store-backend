@@ -40,6 +40,7 @@ const getAllUsers = async (req, res) => {
 exports.getAllUsers = getAllUsers;
 const createUser = async (req, res) => {
     try {
+        const username = (0, prisma_1.getUsername)(req);
         const { name, phone } = req.body;
         if (!name || !phone) {
             res.status(400).json({ error: 'Username (name) and password/phone are required' });
@@ -52,6 +53,7 @@ const createUser = async (req, res) => {
                 logs: '[]',
             },
         });
+        await (0, prisma_1.logUserActivity)(username, 'CREATE_USER', { name: user.name });
         res.status(201).json(user);
     }
     catch (error) {
@@ -61,6 +63,7 @@ const createUser = async (req, res) => {
 exports.createUser = createUser;
 const updateUser = async (req, res) => {
     try {
+        const username = (0, prisma_1.getUsername)(req);
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
             res.status(400).json({ error: 'Invalid user ID' });
@@ -76,6 +79,7 @@ const updateUser = async (req, res) => {
             where: { id },
             data: updateData,
         });
+        await (0, prisma_1.logUserActivity)(username, 'UPDATE_USER', { id: user.id, name: user.name, changes: req.body });
         res.json(user);
     }
     catch (error) {
@@ -85,14 +89,23 @@ const updateUser = async (req, res) => {
 exports.updateUser = updateUser;
 const deleteUser = async (req, res) => {
     try {
+        const username = (0, prisma_1.getUsername)(req);
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
             res.status(400).json({ error: 'Invalid user ID' });
             return;
         }
+        const user = await prisma_1.prisma.user.findUnique({
+            where: { id },
+        });
+        if (!user) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
         await prisma_1.prisma.user.delete({
             where: { id },
         });
+        await (0, prisma_1.logUserActivity)(username, 'DELETE_USER', { id, name: user.name });
         res.status(204).send();
     }
     catch (error) {
