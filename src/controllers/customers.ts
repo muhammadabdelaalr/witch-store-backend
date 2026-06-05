@@ -118,8 +118,8 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const { customer_id, type, amount, notes } = req.body;
 
-    if (!customer_id || !type || amount === undefined) {
-      res.status(400).json({ error: 'customer_id, type, and amount are required' });
+    if (!customer_id || !type || amount === undefined || !notes || !notes.trim()) {
+      res.status(400).json({ error: 'customer_id, type, amount, and notes are required' });
       return;
     }
 
@@ -140,19 +140,22 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
         throw new Error('Customer not found');
       }
 
-      // 2. Create customer transaction
+      // 2. Calculate remaining balance and final notes
+      const balanceDelta = type === 'payment' ? -amountFloat : amountFloat;
+      const remainingBalance = customer.balance + balanceDelta;
+      const internalNote = `[ملاحظة داخلية: الدين المتبقي: ${remainingBalance.toFixed(2)}]`;
+      const finalNotes = notes ? `${notes} | ${internalNote}` : internalNote;
+
       const newTx = await tx.customerTransaction.create({
         data: {
           customer_id: customerIdInt,
           type,
           amount: amountFloat,
-          notes: notes || null,
+          notes: finalNotes,
         },
       });
 
       // 3. Update customer balance
-      const balanceDelta = type === 'payment' ? -amountFloat : amountFloat;
-
       await tx.customer.update({
         where: { id: customerIdInt },
         data: {

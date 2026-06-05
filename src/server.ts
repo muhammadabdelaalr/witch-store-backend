@@ -12,7 +12,6 @@ import salesRouter from "./routes/sales";
 import expensesRouter from "./routes/expenses";
 import reportsRouter from "./routes/reports";
 import usersRouter from "./routes/users";
-import installmentsRouter from "./routes/installments";
 
 
 dotenv.config();
@@ -51,7 +50,6 @@ app.use("/api/sales", salesRouter);
 app.use("/api/expenses", expensesRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/users", usersRouter);
-app.use("/api/installments", installmentsRouter);
 
 
 // Global Error Handler

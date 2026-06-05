@@ -147,27 +147,6 @@ const getDashboardStats = async (req, res) => {
         }))
             .sort((a, b) => b.qty - a.qty)
             .slice(0, 5);
-        // Upcoming installments (due within the next 7 days, status is pending)
-        const next7Days = new Date();
-        next7Days.setDate(next7Days.getDate() + 7);
-        const upcomingInstallmentsCount = await prisma_1.prisma.installment.count({
-            where: {
-                status: 'pending',
-                due_date: {
-                    gte: new Date(),
-                    lte: next7Days,
-                },
-            },
-        });
-        // Overdue installments (due date before now, status is pending)
-        const overdueInstallmentsCount = await prisma_1.prisma.installment.count({
-            where: {
-                status: 'pending',
-                due_date: {
-                    lt: new Date(),
-                },
-            },
-        });
         res.json({
             todayRevenue,
             todayTransactionsCount,
@@ -175,8 +154,6 @@ const getDashboardStats = async (req, res) => {
             lowStockCount,
             weeklyChart,
             topSelling,
-            upcomingInstallmentsCount,
-            overdueInstallmentsCount,
         });
     }
     catch (error) {
@@ -219,8 +196,7 @@ const getSalesReport = async (req, res) => {
             instapay: { count: 0, total: 0 },
             wallet: { count: 0, total: 0 },
             card: { count: 0, total: 0 },
-            credit: { count: 0, total: 0 },
-            installment: { count: 0, total: 0 },
+            deferred: { count: 0, total: 0 },
         };
         sales.forEach((sale) => {
             totalRevenue += sale.total;

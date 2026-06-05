@@ -295,7 +295,6 @@ export type SaleWhereInput = {
   customer?: Prisma.XOR<Prisma.CustomerNullableScalarRelationFilter, Prisma.CustomerWhereInput> | null
   items?: Prisma.SaleItemListRelationFilter
   refunds?: Prisma.RefundListRelationFilter
-  installment_plan?: Prisma.XOR<Prisma.InstallmentPlanNullableScalarRelationFilter, Prisma.InstallmentPlanWhereInput> | null
 }
 
 export type SaleOrderByWithRelationInput = {
@@ -314,7 +313,6 @@ export type SaleOrderByWithRelationInput = {
   customer?: Prisma.CustomerOrderByWithRelationInput
   items?: Prisma.SaleItemOrderByRelationAggregateInput
   refunds?: Prisma.RefundOrderByRelationAggregateInput
-  installment_plan?: Prisma.InstallmentPlanOrderByWithRelationInput
 }
 
 export type SaleWhereUniqueInput = Prisma.AtLeast<{
@@ -336,7 +334,6 @@ export type SaleWhereUniqueInput = Prisma.AtLeast<{
   customer?: Prisma.XOR<Prisma.CustomerNullableScalarRelationFilter, Prisma.CustomerWhereInput> | null
   items?: Prisma.SaleItemListRelationFilter
   refunds?: Prisma.RefundListRelationFilter
-  installment_plan?: Prisma.XOR<Prisma.InstallmentPlanNullableScalarRelationFilter, Prisma.InstallmentPlanWhereInput> | null
 }, "id">
 
 export type SaleOrderByWithAggregationInput = {
@@ -391,7 +388,6 @@ export type SaleCreateInput = {
   customer?: Prisma.CustomerCreateNestedOneWithoutSalesInput
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
   refunds?: Prisma.RefundCreateNestedManyWithoutSaleInput
-  installment_plan?: Prisma.InstallmentPlanCreateNestedOneWithoutSaleInput
 }
 
 export type SaleUncheckedCreateInput = {
@@ -409,7 +405,6 @@ export type SaleUncheckedCreateInput = {
   created_at?: Date | string
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
   refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutSaleInput
-  installment_plan?: Prisma.InstallmentPlanUncheckedCreateNestedOneWithoutSaleInput
 }
 
 export type SaleUpdateInput = {
@@ -426,7 +421,6 @@ export type SaleUpdateInput = {
   customer?: Prisma.CustomerUpdateOneWithoutSalesNestedInput
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
   refunds?: Prisma.RefundUpdateManyWithoutSaleNestedInput
-  installment_plan?: Prisma.InstallmentPlanUpdateOneWithoutSaleNestedInput
 }
 
 export type SaleUncheckedUpdateInput = {
@@ -444,7 +438,6 @@ export type SaleUncheckedUpdateInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
   refunds?: Prisma.RefundUncheckedUpdateManyWithoutSaleNestedInput
-  installment_plan?: Prisma.InstallmentPlanUncheckedUpdateOneWithoutSaleNestedInput
 }
 
 export type SaleCreateManyInput = {
@@ -646,20 +639,6 @@ export type SaleUpdateOneRequiredWithoutRefundsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.SaleUpdateToOneWithWhereWithoutRefundsInput, Prisma.SaleUpdateWithoutRefundsInput>, Prisma.SaleUncheckedUpdateWithoutRefundsInput>
 }
 
-export type SaleCreateNestedOneWithoutInstallment_planInput = {
-  create?: Prisma.XOR<Prisma.SaleCreateWithoutInstallment_planInput, Prisma.SaleUncheckedCreateWithoutInstallment_planInput>
-  connectOrCreate?: Prisma.SaleCreateOrConnectWithoutInstallment_planInput
-  connect?: Prisma.SaleWhereUniqueInput
-}
-
-export type SaleUpdateOneRequiredWithoutInstallment_planNestedInput = {
-  create?: Prisma.XOR<Prisma.SaleCreateWithoutInstallment_planInput, Prisma.SaleUncheckedCreateWithoutInstallment_planInput>
-  connectOrCreate?: Prisma.SaleCreateOrConnectWithoutInstallment_planInput
-  upsert?: Prisma.SaleUpsertWithoutInstallment_planInput
-  connect?: Prisma.SaleWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.SaleUpdateToOneWithWhereWithoutInstallment_planInput, Prisma.SaleUpdateWithoutInstallment_planInput>, Prisma.SaleUncheckedUpdateWithoutInstallment_planInput>
-}
-
 export type SaleCreateWithoutCustomerInput = {
   customer_name?: string | null
   total: number
@@ -673,7 +652,6 @@ export type SaleCreateWithoutCustomerInput = {
   created_at?: Date | string
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
   refunds?: Prisma.RefundCreateNestedManyWithoutSaleInput
-  installment_plan?: Prisma.InstallmentPlanCreateNestedOneWithoutSaleInput
 }
 
 export type SaleUncheckedCreateWithoutCustomerInput = {
@@ -690,7 +668,6 @@ export type SaleUncheckedCreateWithoutCustomerInput = {
   created_at?: Date | string
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
   refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutSaleInput
-  installment_plan?: Prisma.InstallmentPlanUncheckedCreateNestedOneWithoutSaleInput
 }
 
 export type SaleCreateOrConnectWithoutCustomerInput = {
@@ -750,7 +727,6 @@ export type SaleCreateWithoutItemsInput = {
   created_at?: Date | string
   customer?: Prisma.CustomerCreateNestedOneWithoutSalesInput
   refunds?: Prisma.RefundCreateNestedManyWithoutSaleInput
-  installment_plan?: Prisma.InstallmentPlanCreateNestedOneWithoutSaleInput
 }
 
 export type SaleUncheckedCreateWithoutItemsInput = {
@@ -767,7 +743,6 @@ export type SaleUncheckedCreateWithoutItemsInput = {
   seller_name?: string | null
   created_at?: Date | string
   refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutSaleInput
-  installment_plan?: Prisma.InstallmentPlanUncheckedCreateNestedOneWithoutSaleInput
 }
 
 export type SaleCreateOrConnectWithoutItemsInput = {
@@ -799,7 +774,6 @@ export type SaleUpdateWithoutItemsInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneWithoutSalesNestedInput
   refunds?: Prisma.RefundUpdateManyWithoutSaleNestedInput
-  installment_plan?: Prisma.InstallmentPlanUpdateOneWithoutSaleNestedInput
 }
 
 export type SaleUncheckedUpdateWithoutItemsInput = {
@@ -816,7 +790,6 @@ export type SaleUncheckedUpdateWithoutItemsInput = {
   seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   refunds?: Prisma.RefundUncheckedUpdateManyWithoutSaleNestedInput
-  installment_plan?: Prisma.InstallmentPlanUncheckedUpdateOneWithoutSaleNestedInput
 }
 
 export type SaleCreateWithoutRefundsInput = {
@@ -832,7 +805,6 @@ export type SaleCreateWithoutRefundsInput = {
   created_at?: Date | string
   customer?: Prisma.CustomerCreateNestedOneWithoutSalesInput
   items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
-  installment_plan?: Prisma.InstallmentPlanCreateNestedOneWithoutSaleInput
 }
 
 export type SaleUncheckedCreateWithoutRefundsInput = {
@@ -849,7 +821,6 @@ export type SaleUncheckedCreateWithoutRefundsInput = {
   seller_name?: string | null
   created_at?: Date | string
   items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
-  installment_plan?: Prisma.InstallmentPlanUncheckedCreateNestedOneWithoutSaleInput
 }
 
 export type SaleCreateOrConnectWithoutRefundsInput = {
@@ -881,7 +852,6 @@ export type SaleUpdateWithoutRefundsInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneWithoutSalesNestedInput
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
-  installment_plan?: Prisma.InstallmentPlanUpdateOneWithoutSaleNestedInput
 }
 
 export type SaleUncheckedUpdateWithoutRefundsInput = {
@@ -898,89 +868,6 @@ export type SaleUncheckedUpdateWithoutRefundsInput = {
   seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
-  installment_plan?: Prisma.InstallmentPlanUncheckedUpdateOneWithoutSaleNestedInput
-}
-
-export type SaleCreateWithoutInstallment_planInput = {
-  customer_name?: string | null
-  total: number
-  discount?: number
-  tax?: number
-  amount_paid: number
-  payment_method: $Enums.PaymentMethod
-  sale_type?: $Enums.SaleType
-  notes?: string | null
-  seller_name?: string | null
-  created_at?: Date | string
-  customer?: Prisma.CustomerCreateNestedOneWithoutSalesInput
-  items?: Prisma.SaleItemCreateNestedManyWithoutSaleInput
-  refunds?: Prisma.RefundCreateNestedManyWithoutSaleInput
-}
-
-export type SaleUncheckedCreateWithoutInstallment_planInput = {
-  id?: number
-  customer_id?: number | null
-  customer_name?: string | null
-  total: number
-  discount?: number
-  tax?: number
-  amount_paid: number
-  payment_method: $Enums.PaymentMethod
-  sale_type?: $Enums.SaleType
-  notes?: string | null
-  seller_name?: string | null
-  created_at?: Date | string
-  items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutSaleInput
-  refunds?: Prisma.RefundUncheckedCreateNestedManyWithoutSaleInput
-}
-
-export type SaleCreateOrConnectWithoutInstallment_planInput = {
-  where: Prisma.SaleWhereUniqueInput
-  create: Prisma.XOR<Prisma.SaleCreateWithoutInstallment_planInput, Prisma.SaleUncheckedCreateWithoutInstallment_planInput>
-}
-
-export type SaleUpsertWithoutInstallment_planInput = {
-  update: Prisma.XOR<Prisma.SaleUpdateWithoutInstallment_planInput, Prisma.SaleUncheckedUpdateWithoutInstallment_planInput>
-  create: Prisma.XOR<Prisma.SaleCreateWithoutInstallment_planInput, Prisma.SaleUncheckedCreateWithoutInstallment_planInput>
-  where?: Prisma.SaleWhereInput
-}
-
-export type SaleUpdateToOneWithWhereWithoutInstallment_planInput = {
-  where?: Prisma.SaleWhereInput
-  data: Prisma.XOR<Prisma.SaleUpdateWithoutInstallment_planInput, Prisma.SaleUncheckedUpdateWithoutInstallment_planInput>
-}
-
-export type SaleUpdateWithoutInstallment_planInput = {
-  customer_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  total?: Prisma.FloatFieldUpdateOperationsInput | number
-  discount?: Prisma.FloatFieldUpdateOperationsInput | number
-  tax?: Prisma.FloatFieldUpdateOperationsInput | number
-  amount_paid?: Prisma.FloatFieldUpdateOperationsInput | number
-  payment_method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
-  sale_type?: Prisma.EnumSaleTypeFieldUpdateOperationsInput | $Enums.SaleType
-  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  customer?: Prisma.CustomerUpdateOneWithoutSalesNestedInput
-  items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
-  refunds?: Prisma.RefundUpdateManyWithoutSaleNestedInput
-}
-
-export type SaleUncheckedUpdateWithoutInstallment_planInput = {
-  id?: Prisma.IntFieldUpdateOperationsInput | number
-  customer_id?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
-  customer_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  total?: Prisma.FloatFieldUpdateOperationsInput | number
-  discount?: Prisma.FloatFieldUpdateOperationsInput | number
-  tax?: Prisma.FloatFieldUpdateOperationsInput | number
-  amount_paid?: Prisma.FloatFieldUpdateOperationsInput | number
-  payment_method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
-  sale_type?: Prisma.EnumSaleTypeFieldUpdateOperationsInput | $Enums.SaleType
-  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
-  refunds?: Prisma.RefundUncheckedUpdateManyWithoutSaleNestedInput
 }
 
 export type SaleCreateManyCustomerInput = {
@@ -1010,7 +897,6 @@ export type SaleUpdateWithoutCustomerInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   items?: Prisma.SaleItemUpdateManyWithoutSaleNestedInput
   refunds?: Prisma.RefundUpdateManyWithoutSaleNestedInput
-  installment_plan?: Prisma.InstallmentPlanUpdateOneWithoutSaleNestedInput
 }
 
 export type SaleUncheckedUpdateWithoutCustomerInput = {
@@ -1027,7 +913,6 @@ export type SaleUncheckedUpdateWithoutCustomerInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   items?: Prisma.SaleItemUncheckedUpdateManyWithoutSaleNestedInput
   refunds?: Prisma.RefundUncheckedUpdateManyWithoutSaleNestedInput
-  installment_plan?: Prisma.InstallmentPlanUncheckedUpdateOneWithoutSaleNestedInput
 }
 
 export type SaleUncheckedUpdateManyWithoutCustomerInput = {
@@ -1100,7 +985,6 @@ export type SaleSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   customer?: boolean | Prisma.Sale$customerArgs<ExtArgs>
   items?: boolean | Prisma.Sale$itemsArgs<ExtArgs>
   refunds?: boolean | Prisma.Sale$refundsArgs<ExtArgs>
-  installment_plan?: boolean | Prisma.Sale$installment_planArgs<ExtArgs>
   _count?: boolean | Prisma.SaleCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["sale"]>
 
@@ -1156,7 +1040,6 @@ export type SaleInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   customer?: boolean | Prisma.Sale$customerArgs<ExtArgs>
   items?: boolean | Prisma.Sale$itemsArgs<ExtArgs>
   refunds?: boolean | Prisma.Sale$refundsArgs<ExtArgs>
-  installment_plan?: boolean | Prisma.Sale$installment_planArgs<ExtArgs>
   _count?: boolean | Prisma.SaleCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type SaleIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1172,7 +1055,6 @@ export type $SalePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     customer: Prisma.$CustomerPayload<ExtArgs> | null
     items: Prisma.$SaleItemPayload<ExtArgs>[]
     refunds: Prisma.$RefundPayload<ExtArgs>[]
-    installment_plan: Prisma.$InstallmentPlanPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1584,7 +1466,6 @@ export interface Prisma__SaleClient<T, Null = never, ExtArgs extends runtime.Typ
   customer<T extends Prisma.Sale$customerArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sale$customerArgs<ExtArgs>>): Prisma.Prisma__CustomerClient<runtime.Types.Result.GetResult<Prisma.$CustomerPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   items<T extends Prisma.Sale$itemsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sale$itemsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SaleItemPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   refunds<T extends Prisma.Sale$refundsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sale$refundsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RefundPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  installment_plan<T extends Prisma.Sale$installment_planArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Sale$installment_planArgs<ExtArgs>>): Prisma.Prisma__InstallmentPlanClient<runtime.Types.Result.GetResult<Prisma.$InstallmentPlanPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2091,25 +1972,6 @@ export type Sale$refundsArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
   take?: number
   skip?: number
   distinct?: Prisma.RefundScalarFieldEnum | Prisma.RefundScalarFieldEnum[]
-}
-
-/**
- * Sale.installment_plan
- */
-export type Sale$installment_planArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the InstallmentPlan
-   */
-  select?: Prisma.InstallmentPlanSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the InstallmentPlan
-   */
-  omit?: Prisma.InstallmentPlanOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.InstallmentPlanInclude<ExtArgs> | null
-  where?: Prisma.InstallmentPlanWhereInput
 }
 
 /**

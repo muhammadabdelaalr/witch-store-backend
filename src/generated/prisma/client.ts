@@ -99,13 +99,3 @@ export type Refund = Prisma.RefundModel
  * 
  */
 export type RefundItem = Prisma.RefundItemModel
-/**
- * Model InstallmentPlan
- * 
- */
-export type InstallmentPlan = Prisma.InstallmentPlanModel
-/**
- * Model Installment
- * 
- */
-export type Installment = Prisma.InstallmentModel

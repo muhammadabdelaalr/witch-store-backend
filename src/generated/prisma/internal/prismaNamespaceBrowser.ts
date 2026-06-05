@@ -62,9 +62,7 @@ export const ModelName = {
   SupplierTransaction: 'SupplierTransaction',
   User: 'User',
   Refund: 'Refund',
-  RefundItem: 'RefundItem',
-  InstallmentPlan: 'InstallmentPlan',
-  Installment: 'Installment'
+  RefundItem: 'RefundItem'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -238,36 +236,6 @@ export const RefundItemScalarFieldEnum = {
 } as const
 
 export type RefundItemScalarFieldEnum = (typeof RefundItemScalarFieldEnum)[keyof typeof RefundItemScalarFieldEnum]
-
-
-export const InstallmentPlanScalarFieldEnum = {
-  id: 'id',
-  sale_id: 'sale_id',
-  customer_id: 'customer_id',
-  total_amount: 'total_amount',
-  down_payment: 'down_payment',
-  installments_count: 'installments_count',
-  status: 'status',
-  created_at: 'created_at',
-  updated_at: 'updated_at'
-} as const
-
-export type InstallmentPlanScalarFieldEnum = (typeof InstallmentPlanScalarFieldEnum)[keyof typeof InstallmentPlanScalarFieldEnum]
-
-
-export const InstallmentScalarFieldEnum = {
-  id: 'id',
-  plan_id: 'plan_id',
-  due_date: 'due_date',
-  amount: 'amount',
-  amount_paid: 'amount_paid',
-  status: 'status',
-  paid_at: 'paid_at',
-  created_at: 'created_at',
-  updated_at: 'updated_at'
-} as const
-
-export type InstallmentScalarFieldEnum = (typeof InstallmentScalarFieldEnum)[keyof typeof InstallmentScalarFieldEnum]
 
 
 export const SortOrder = {

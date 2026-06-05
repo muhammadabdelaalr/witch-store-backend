@@ -153,6 +153,9 @@ export const createRefund = async (req: Request, res: Response) => {
       }
 
       return newRefund;
+    }, {
+      maxWait: 15000,
+      timeout: 30000
     });
 
     res.status(201).json(refund);
