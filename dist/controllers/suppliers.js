@@ -105,9 +105,13 @@ exports.updateSupplier = updateSupplier;
 const addSupplierTransaction = async (req, res) => {
     try {
         const username = (0, prisma_1.getUsername)(req);
-        const { supplier_id, type, amount, notes } = req.body;
+        const { supplier_id, type, amount, notes, date, seller_name } = req.body;
         if (!supplier_id || !type || amount === undefined) {
             res.status(400).json({ error: 'supplier_id, type, and amount are required' });
+            return;
+        }
+        if (!notes || notes.trim() === '') {
+            res.status(400).json({ error: 'Notes are required for all supplier transactions' });
             return;
         }
         if (type !== 'payment' && type !== 'purchase') {
@@ -130,7 +134,9 @@ const addSupplierTransaction = async (req, res) => {
                     supplier_id: supplierIdInt,
                     type,
                     amount: amountFloat,
-                    notes: notes || null,
+                    notes: notes.trim(),
+                    seller_name: seller_name || null,
+                    created_at: date ? new Date(date) : new Date(),
                 },
             });
             // 3. Update supplier balance

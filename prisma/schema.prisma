@@ -34,6 +34,7 @@ model Product {
   updated_at          DateTime   @updatedAt
   sale_items          SaleItem[]
   refund_items        RefundItem[]
+  supplier_invoice_items SupplierInvoiceItem[]
 
   @@index([barcode], map: "idx_products_barcode")
   @@index([sku], map: "idx_products_sku")
@@ -64,6 +65,7 @@ model Supplier {
   balance      Float                 @default(0)
   created_at   DateTime              @default(now())
   transactions SupplierTransaction[]
+  invoices     SupplierInvoice[]
 
   @@map("suppliers")
 }
@@ -164,9 +166,13 @@ model SupplierTransaction {
   type        SupplierTransactionType
   amount      Float
   notes       String?
+  invoice_id  Int?
+  invoice     SupplierInvoice?        @relation(fields: [invoice_id], references: [id], onDelete: SetNull)
+  seller_name String?
   created_at  DateTime                @default(now())
 
   @@index([supplier_id], map: "idx_supplier_transactions_supplier")
+  @@index([invoice_id], map: "idx_supplier_transactions_invoice")
   @@map("supplier_transactions")
 }
 
@@ -206,5 +212,50 @@ model RefundItem {
 
   @@index([refund_id], map: "idx_refund_items_refund")
   @@map("refund_items")
+}
+
+model SupplierInvoice {
+  id           Int                      @id @default(autoincrement())
+  supplier_id  Int
+  supplier     Supplier                 @relation(fields: [supplier_id], references: [id])
+  total        Float
+  amount_paid  Float
+  notes        String
+  seller_name  String
+  invoice_date DateTime
+  created_at   DateTime                 @default(now())
+  items        SupplierInvoiceItem[]
+  transactions SupplierTransaction[]
+  history      SupplierInvoiceHistory[]
+
+  @@index([supplier_id], map: "idx_supplier_invoices_supplier")
+  @@index([invoice_date], map: "idx_supplier_invoices_date")
+  @@map("supplier_invoices")
+}
+
+model SupplierInvoiceItem {
+  id          Int             @id @default(autoincrement())
+  invoice_id  Int
+  invoice     SupplierInvoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  product_id  Int
+  product     Product         @relation(fields: [product_id], references: [id])
+  qty         Int
+  unit_cost   Float
+
+  @@index([invoice_id], map: "idx_supplier_invoice_items_invoice")
+  @@index([product_id], map: "idx_supplier_invoice_items_product")
+  @@map("supplier_invoice_items")
+}
+
+model SupplierInvoiceHistory {
+  id          Int             @id @default(autoincrement())
+  invoice_id  Int
+  invoice     SupplierInvoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  seller_name String
+  action      String
+  changes     String
+  created_at  DateTime        @default(now())
+
+  @@map("supplier_invoice_history")
 }
 

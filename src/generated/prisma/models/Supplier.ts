@@ -237,6 +237,7 @@ export type SupplierWhereInput = {
   balance?: Prisma.FloatFilter<"Supplier"> | number
   created_at?: Prisma.DateTimeFilter<"Supplier"> | Date | string
   transactions?: Prisma.SupplierTransactionListRelationFilter
+  invoices?: Prisma.SupplierInvoiceListRelationFilter
 }
 
 export type SupplierOrderByWithRelationInput = {
@@ -248,6 +249,7 @@ export type SupplierOrderByWithRelationInput = {
   balance?: Prisma.SortOrder
   created_at?: Prisma.SortOrder
   transactions?: Prisma.SupplierTransactionOrderByRelationAggregateInput
+  invoices?: Prisma.SupplierInvoiceOrderByRelationAggregateInput
 }
 
 export type SupplierWhereUniqueInput = Prisma.AtLeast<{
@@ -262,6 +264,7 @@ export type SupplierWhereUniqueInput = Prisma.AtLeast<{
   balance?: Prisma.FloatFilter<"Supplier"> | number
   created_at?: Prisma.DateTimeFilter<"Supplier"> | Date | string
   transactions?: Prisma.SupplierTransactionListRelationFilter
+  invoices?: Prisma.SupplierInvoiceListRelationFilter
 }, "id">
 
 export type SupplierOrderByWithAggregationInput = {
@@ -300,6 +303,7 @@ export type SupplierCreateInput = {
   balance?: number
   created_at?: Date | string
   transactions?: Prisma.SupplierTransactionCreateNestedManyWithoutSupplierInput
+  invoices?: Prisma.SupplierInvoiceCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierUncheckedCreateInput = {
@@ -311,6 +315,7 @@ export type SupplierUncheckedCreateInput = {
   balance?: number
   created_at?: Date | string
   transactions?: Prisma.SupplierTransactionUncheckedCreateNestedManyWithoutSupplierInput
+  invoices?: Prisma.SupplierInvoiceUncheckedCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierUpdateInput = {
@@ -321,6 +326,7 @@ export type SupplierUpdateInput = {
   balance?: Prisma.FloatFieldUpdateOperationsInput | number
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   transactions?: Prisma.SupplierTransactionUpdateManyWithoutSupplierNestedInput
+  invoices?: Prisma.SupplierInvoiceUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierUncheckedUpdateInput = {
@@ -332,6 +338,7 @@ export type SupplierUncheckedUpdateInput = {
   balance?: Prisma.FloatFieldUpdateOperationsInput | number
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   transactions?: Prisma.SupplierTransactionUncheckedUpdateManyWithoutSupplierNestedInput
+  invoices?: Prisma.SupplierInvoiceUncheckedUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierCreateManyInput = {
@@ -422,6 +429,20 @@ export type SupplierUpdateOneRequiredWithoutTransactionsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.SupplierUpdateToOneWithWhereWithoutTransactionsInput, Prisma.SupplierUpdateWithoutTransactionsInput>, Prisma.SupplierUncheckedUpdateWithoutTransactionsInput>
 }
 
+export type SupplierCreateNestedOneWithoutInvoicesInput = {
+  create?: Prisma.XOR<Prisma.SupplierCreateWithoutInvoicesInput, Prisma.SupplierUncheckedCreateWithoutInvoicesInput>
+  connectOrCreate?: Prisma.SupplierCreateOrConnectWithoutInvoicesInput
+  connect?: Prisma.SupplierWhereUniqueInput
+}
+
+export type SupplierUpdateOneRequiredWithoutInvoicesNestedInput = {
+  create?: Prisma.XOR<Prisma.SupplierCreateWithoutInvoicesInput, Prisma.SupplierUncheckedCreateWithoutInvoicesInput>
+  connectOrCreate?: Prisma.SupplierCreateOrConnectWithoutInvoicesInput
+  upsert?: Prisma.SupplierUpsertWithoutInvoicesInput
+  connect?: Prisma.SupplierWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.SupplierUpdateToOneWithWhereWithoutInvoicesInput, Prisma.SupplierUpdateWithoutInvoicesInput>, Prisma.SupplierUncheckedUpdateWithoutInvoicesInput>
+}
+
 export type SupplierCreateWithoutTransactionsInput = {
   name: string
   phone?: string | null
@@ -429,6 +450,7 @@ export type SupplierCreateWithoutTransactionsInput = {
   address?: string | null
   balance?: number
   created_at?: Date | string
+  invoices?: Prisma.SupplierInvoiceCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierUncheckedCreateWithoutTransactionsInput = {
@@ -439,6 +461,7 @@ export type SupplierUncheckedCreateWithoutTransactionsInput = {
   address?: string | null
   balance?: number
   created_at?: Date | string
+  invoices?: Prisma.SupplierInvoiceUncheckedCreateNestedManyWithoutSupplierInput
 }
 
 export type SupplierCreateOrConnectWithoutTransactionsInput = {
@@ -464,6 +487,7 @@ export type SupplierUpdateWithoutTransactionsInput = {
   address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   balance?: Prisma.FloatFieldUpdateOperationsInput | number
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  invoices?: Prisma.SupplierInvoiceUpdateManyWithoutSupplierNestedInput
 }
 
 export type SupplierUncheckedUpdateWithoutTransactionsInput = {
@@ -474,6 +498,65 @@ export type SupplierUncheckedUpdateWithoutTransactionsInput = {
   address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   balance?: Prisma.FloatFieldUpdateOperationsInput | number
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  invoices?: Prisma.SupplierInvoiceUncheckedUpdateManyWithoutSupplierNestedInput
+}
+
+export type SupplierCreateWithoutInvoicesInput = {
+  name: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  balance?: number
+  created_at?: Date | string
+  transactions?: Prisma.SupplierTransactionCreateNestedManyWithoutSupplierInput
+}
+
+export type SupplierUncheckedCreateWithoutInvoicesInput = {
+  id?: number
+  name: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  balance?: number
+  created_at?: Date | string
+  transactions?: Prisma.SupplierTransactionUncheckedCreateNestedManyWithoutSupplierInput
+}
+
+export type SupplierCreateOrConnectWithoutInvoicesInput = {
+  where: Prisma.SupplierWhereUniqueInput
+  create: Prisma.XOR<Prisma.SupplierCreateWithoutInvoicesInput, Prisma.SupplierUncheckedCreateWithoutInvoicesInput>
+}
+
+export type SupplierUpsertWithoutInvoicesInput = {
+  update: Prisma.XOR<Prisma.SupplierUpdateWithoutInvoicesInput, Prisma.SupplierUncheckedUpdateWithoutInvoicesInput>
+  create: Prisma.XOR<Prisma.SupplierCreateWithoutInvoicesInput, Prisma.SupplierUncheckedCreateWithoutInvoicesInput>
+  where?: Prisma.SupplierWhereInput
+}
+
+export type SupplierUpdateToOneWithWhereWithoutInvoicesInput = {
+  where?: Prisma.SupplierWhereInput
+  data: Prisma.XOR<Prisma.SupplierUpdateWithoutInvoicesInput, Prisma.SupplierUncheckedUpdateWithoutInvoicesInput>
+}
+
+export type SupplierUpdateWithoutInvoicesInput = {
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  balance?: Prisma.FloatFieldUpdateOperationsInput | number
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  transactions?: Prisma.SupplierTransactionUpdateManyWithoutSupplierNestedInput
+}
+
+export type SupplierUncheckedUpdateWithoutInvoicesInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  balance?: Prisma.FloatFieldUpdateOperationsInput | number
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  transactions?: Prisma.SupplierTransactionUncheckedUpdateManyWithoutSupplierNestedInput
 }
 
 
@@ -483,10 +566,12 @@ export type SupplierUncheckedUpdateWithoutTransactionsInput = {
 
 export type SupplierCountOutputType = {
   transactions: number
+  invoices: number
 }
 
 export type SupplierCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   transactions?: boolean | SupplierCountOutputTypeCountTransactionsArgs
+  invoices?: boolean | SupplierCountOutputTypeCountInvoicesArgs
 }
 
 /**
@@ -506,6 +591,13 @@ export type SupplierCountOutputTypeCountTransactionsArgs<ExtArgs extends runtime
   where?: Prisma.SupplierTransactionWhereInput
 }
 
+/**
+ * SupplierCountOutputType without action
+ */
+export type SupplierCountOutputTypeCountInvoicesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SupplierInvoiceWhereInput
+}
+
 
 export type SupplierSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -516,6 +608,7 @@ export type SupplierSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   balance?: boolean
   created_at?: boolean
   transactions?: boolean | Prisma.Supplier$transactionsArgs<ExtArgs>
+  invoices?: boolean | Prisma.Supplier$invoicesArgs<ExtArgs>
   _count?: boolean | Prisma.SupplierCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["supplier"]>
 
@@ -552,6 +645,7 @@ export type SupplierSelectScalar = {
 export type SupplierOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "phone" | "email" | "address" | "balance" | "created_at", ExtArgs["result"]["supplier"]>
 export type SupplierInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   transactions?: boolean | Prisma.Supplier$transactionsArgs<ExtArgs>
+  invoices?: boolean | Prisma.Supplier$invoicesArgs<ExtArgs>
   _count?: boolean | Prisma.SupplierCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type SupplierIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -561,6 +655,7 @@ export type $SupplierPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
   name: "Supplier"
   objects: {
     transactions: Prisma.$SupplierTransactionPayload<ExtArgs>[]
+    invoices: Prisma.$SupplierInvoicePayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -965,6 +1060,7 @@ readonly fields: SupplierFieldRefs;
 export interface Prisma__SupplierClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   transactions<T extends Prisma.Supplier$transactionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Supplier$transactionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SupplierTransactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  invoices<T extends Prisma.Supplier$invoicesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Supplier$invoicesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SupplierInvoicePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1415,6 +1511,30 @@ export type Supplier$transactionsArgs<ExtArgs extends runtime.Types.Extensions.I
   take?: number
   skip?: number
   distinct?: Prisma.SupplierTransactionScalarFieldEnum | Prisma.SupplierTransactionScalarFieldEnum[]
+}
+
+/**
+ * Supplier.invoices
+ */
+export type Supplier$invoicesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SupplierInvoice
+   */
+  select?: Prisma.SupplierInvoiceSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SupplierInvoice
+   */
+  omit?: Prisma.SupplierInvoiceOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SupplierInvoiceInclude<ExtArgs> | null
+  where?: Prisma.SupplierInvoiceWhereInput
+  orderBy?: Prisma.SupplierInvoiceOrderByWithRelationInput | Prisma.SupplierInvoiceOrderByWithRelationInput[]
+  cursor?: Prisma.SupplierInvoiceWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SupplierInvoiceScalarFieldEnum | Prisma.SupplierInvoiceScalarFieldEnum[]
 }
 
 /**

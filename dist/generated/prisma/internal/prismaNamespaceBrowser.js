@@ -48,7 +48,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NullsOrder = exports.QueryMode = exports.SortOrder = exports.RefundItemScalarFieldEnum = exports.RefundScalarFieldEnum = exports.UserScalarFieldEnum = exports.SupplierTransactionScalarFieldEnum = exports.CustomerTransactionScalarFieldEnum = exports.ExpenseScalarFieldEnum = exports.SaleItemScalarFieldEnum = exports.SaleScalarFieldEnum = exports.SupplierScalarFieldEnum = exports.CustomerScalarFieldEnum = exports.ProductScalarFieldEnum = exports.CategoryScalarFieldEnum = exports.TransactionIsolationLevel = exports.ModelName = exports.AnyNull = exports.JsonNull = exports.DbNull = exports.NullTypes = exports.Decimal = void 0;
+exports.NullsOrder = exports.QueryMode = exports.SortOrder = exports.SupplierInvoiceHistoryScalarFieldEnum = exports.SupplierInvoiceItemScalarFieldEnum = exports.SupplierInvoiceScalarFieldEnum = exports.RefundItemScalarFieldEnum = exports.RefundScalarFieldEnum = exports.UserScalarFieldEnum = exports.SupplierTransactionScalarFieldEnum = exports.CustomerTransactionScalarFieldEnum = exports.ExpenseScalarFieldEnum = exports.SaleItemScalarFieldEnum = exports.SaleScalarFieldEnum = exports.SupplierScalarFieldEnum = exports.CustomerScalarFieldEnum = exports.ProductScalarFieldEnum = exports.CategoryScalarFieldEnum = exports.TransactionIsolationLevel = exports.ModelName = exports.AnyNull = exports.JsonNull = exports.DbNull = exports.NullTypes = exports.Decimal = void 0;
 const runtime = __importStar(require("@prisma/client/runtime/index-browser"));
 exports.Decimal = runtime.Decimal;
 exports.NullTypes = {
@@ -86,7 +86,10 @@ exports.ModelName = {
     SupplierTransaction: 'SupplierTransaction',
     User: 'User',
     Refund: 'Refund',
-    RefundItem: 'RefundItem'
+    RefundItem: 'RefundItem',
+    SupplierInvoice: 'SupplierInvoice',
+    SupplierInvoiceItem: 'SupplierInvoiceItem',
+    SupplierInvoiceHistory: 'SupplierInvoiceHistory'
 };
 /*
  * Enums
@@ -181,6 +184,8 @@ exports.SupplierTransactionScalarFieldEnum = {
     type: 'type',
     amount: 'amount',
     notes: 'notes',
+    invoice_id: 'invoice_id',
+    seller_name: 'seller_name',
     created_at: 'created_at'
 };
 exports.UserScalarFieldEnum = {
@@ -205,6 +210,31 @@ exports.RefundItemScalarFieldEnum = {
     qty: 'qty',
     unit_price: 'unit_price',
     cost_price: 'cost_price'
+};
+exports.SupplierInvoiceScalarFieldEnum = {
+    id: 'id',
+    supplier_id: 'supplier_id',
+    total: 'total',
+    amount_paid: 'amount_paid',
+    notes: 'notes',
+    seller_name: 'seller_name',
+    invoice_date: 'invoice_date',
+    created_at: 'created_at'
+};
+exports.SupplierInvoiceItemScalarFieldEnum = {
+    id: 'id',
+    invoice_id: 'invoice_id',
+    product_id: 'product_id',
+    qty: 'qty',
+    unit_cost: 'unit_cost'
+};
+exports.SupplierInvoiceHistoryScalarFieldEnum = {
+    id: 'id',
+    invoice_id: 'invoice_id',
+    seller_name: 'seller_name',
+    action: 'action',
+    changes: 'changes',
+    created_at: 'created_at'
 };
 exports.SortOrder = {
     asc: 'asc',

@@ -311,6 +311,7 @@ export type ProductWhereInput = {
   category?: Prisma.XOR<Prisma.CategoryNullableScalarRelationFilter, Prisma.CategoryWhereInput> | null
   sale_items?: Prisma.SaleItemListRelationFilter
   refund_items?: Prisma.RefundItemListRelationFilter
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemListRelationFilter
 }
 
 export type ProductOrderByWithRelationInput = {
@@ -331,6 +332,7 @@ export type ProductOrderByWithRelationInput = {
   category?: Prisma.CategoryOrderByWithRelationInput
   sale_items?: Prisma.SaleItemOrderByRelationAggregateInput
   refund_items?: Prisma.RefundItemOrderByRelationAggregateInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemOrderByRelationAggregateInput
 }
 
 export type ProductWhereUniqueInput = Prisma.AtLeast<{
@@ -354,6 +356,7 @@ export type ProductWhereUniqueInput = Prisma.AtLeast<{
   category?: Prisma.XOR<Prisma.CategoryNullableScalarRelationFilter, Prisma.CategoryWhereInput> | null
   sale_items?: Prisma.SaleItemListRelationFilter
   refund_items?: Prisma.RefundItemListRelationFilter
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemListRelationFilter
 }, "id" | "sku" | "barcode">
 
 export type ProductOrderByWithAggregationInput = {
@@ -414,6 +417,7 @@ export type ProductCreateInput = {
   category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
   sale_items?: Prisma.SaleItemCreateNestedManyWithoutProductInput
   refund_items?: Prisma.RefundItemCreateNestedManyWithoutProductInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateInput = {
@@ -433,6 +437,7 @@ export type ProductUncheckedCreateInput = {
   updated_at?: Date | string
   sale_items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutProductInput
   refund_items?: Prisma.RefundItemUncheckedCreateNestedManyWithoutProductInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductUpdateInput = {
@@ -451,6 +456,7 @@ export type ProductUpdateInput = {
   category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
   sale_items?: Prisma.SaleItemUpdateManyWithoutProductNestedInput
   refund_items?: Prisma.RefundItemUpdateManyWithoutProductNestedInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateInput = {
@@ -470,6 +476,7 @@ export type ProductUncheckedUpdateInput = {
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sale_items?: Prisma.SaleItemUncheckedUpdateManyWithoutProductNestedInput
   refund_items?: Prisma.RefundItemUncheckedUpdateManyWithoutProductNestedInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductCreateManyInput = {
@@ -695,6 +702,20 @@ export type ProductUpdateOneRequiredWithoutRefund_itemsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.ProductUpdateToOneWithWhereWithoutRefund_itemsInput, Prisma.ProductUpdateWithoutRefund_itemsInput>, Prisma.ProductUncheckedUpdateWithoutRefund_itemsInput>
 }
 
+export type ProductCreateNestedOneWithoutSupplier_invoice_itemsInput = {
+  create?: Prisma.XOR<Prisma.ProductCreateWithoutSupplier_invoice_itemsInput, Prisma.ProductUncheckedCreateWithoutSupplier_invoice_itemsInput>
+  connectOrCreate?: Prisma.ProductCreateOrConnectWithoutSupplier_invoice_itemsInput
+  connect?: Prisma.ProductWhereUniqueInput
+}
+
+export type ProductUpdateOneRequiredWithoutSupplier_invoice_itemsNestedInput = {
+  create?: Prisma.XOR<Prisma.ProductCreateWithoutSupplier_invoice_itemsInput, Prisma.ProductUncheckedCreateWithoutSupplier_invoice_itemsInput>
+  connectOrCreate?: Prisma.ProductCreateOrConnectWithoutSupplier_invoice_itemsInput
+  upsert?: Prisma.ProductUpsertWithoutSupplier_invoice_itemsInput
+  connect?: Prisma.ProductWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ProductUpdateToOneWithWhereWithoutSupplier_invoice_itemsInput, Prisma.ProductUpdateWithoutSupplier_invoice_itemsInput>, Prisma.ProductUncheckedUpdateWithoutSupplier_invoice_itemsInput>
+}
+
 export type ProductCreateWithoutCategoryInput = {
   name: string
   sku?: string | null
@@ -710,6 +731,7 @@ export type ProductCreateWithoutCategoryInput = {
   updated_at?: Date | string
   sale_items?: Prisma.SaleItemCreateNestedManyWithoutProductInput
   refund_items?: Prisma.RefundItemCreateNestedManyWithoutProductInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateWithoutCategoryInput = {
@@ -728,6 +750,7 @@ export type ProductUncheckedCreateWithoutCategoryInput = {
   updated_at?: Date | string
   sale_items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutProductInput
   refund_items?: Prisma.RefundItemUncheckedCreateNestedManyWithoutProductInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutCategoryInput = {
@@ -791,6 +814,7 @@ export type ProductCreateWithoutSale_itemsInput = {
   updated_at?: Date | string
   category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
   refund_items?: Prisma.RefundItemCreateNestedManyWithoutProductInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateWithoutSale_itemsInput = {
@@ -809,6 +833,7 @@ export type ProductUncheckedCreateWithoutSale_itemsInput = {
   created_at?: Date | string
   updated_at?: Date | string
   refund_items?: Prisma.RefundItemUncheckedCreateNestedManyWithoutProductInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutSale_itemsInput = {
@@ -842,6 +867,7 @@ export type ProductUpdateWithoutSale_itemsInput = {
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
   refund_items?: Prisma.RefundItemUpdateManyWithoutProductNestedInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutSale_itemsInput = {
@@ -860,6 +886,7 @@ export type ProductUncheckedUpdateWithoutSale_itemsInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   refund_items?: Prisma.RefundItemUncheckedUpdateManyWithoutProductNestedInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductCreateWithoutRefund_itemsInput = {
@@ -877,6 +904,7 @@ export type ProductCreateWithoutRefund_itemsInput = {
   updated_at?: Date | string
   category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
   sale_items?: Prisma.SaleItemCreateNestedManyWithoutProductInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemCreateNestedManyWithoutProductInput
 }
 
 export type ProductUncheckedCreateWithoutRefund_itemsInput = {
@@ -895,6 +923,7 @@ export type ProductUncheckedCreateWithoutRefund_itemsInput = {
   created_at?: Date | string
   updated_at?: Date | string
   sale_items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutProductInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUncheckedCreateNestedManyWithoutProductInput
 }
 
 export type ProductCreateOrConnectWithoutRefund_itemsInput = {
@@ -928,6 +957,7 @@ export type ProductUpdateWithoutRefund_itemsInput = {
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
   sale_items?: Prisma.SaleItemUpdateManyWithoutProductNestedInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutRefund_itemsInput = {
@@ -946,6 +976,97 @@ export type ProductUncheckedUpdateWithoutRefund_itemsInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sale_items?: Prisma.SaleItemUncheckedUpdateManyWithoutProductNestedInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUncheckedUpdateManyWithoutProductNestedInput
+}
+
+export type ProductCreateWithoutSupplier_invoice_itemsInput = {
+  name: string
+  sku?: string | null
+  barcode?: string | null
+  factory?: string | null
+  description?: string | null
+  cost_price?: number
+  sell_price?: number
+  stock_qty?: number
+  low_stock_threshold?: number | null
+  image_path?: string | null
+  created_at?: Date | string
+  updated_at?: Date | string
+  category?: Prisma.CategoryCreateNestedOneWithoutProductsInput
+  sale_items?: Prisma.SaleItemCreateNestedManyWithoutProductInput
+  refund_items?: Prisma.RefundItemCreateNestedManyWithoutProductInput
+}
+
+export type ProductUncheckedCreateWithoutSupplier_invoice_itemsInput = {
+  id?: number
+  name: string
+  sku?: string | null
+  barcode?: string | null
+  category_id?: number | null
+  factory?: string | null
+  description?: string | null
+  cost_price?: number
+  sell_price?: number
+  stock_qty?: number
+  low_stock_threshold?: number | null
+  image_path?: string | null
+  created_at?: Date | string
+  updated_at?: Date | string
+  sale_items?: Prisma.SaleItemUncheckedCreateNestedManyWithoutProductInput
+  refund_items?: Prisma.RefundItemUncheckedCreateNestedManyWithoutProductInput
+}
+
+export type ProductCreateOrConnectWithoutSupplier_invoice_itemsInput = {
+  where: Prisma.ProductWhereUniqueInput
+  create: Prisma.XOR<Prisma.ProductCreateWithoutSupplier_invoice_itemsInput, Prisma.ProductUncheckedCreateWithoutSupplier_invoice_itemsInput>
+}
+
+export type ProductUpsertWithoutSupplier_invoice_itemsInput = {
+  update: Prisma.XOR<Prisma.ProductUpdateWithoutSupplier_invoice_itemsInput, Prisma.ProductUncheckedUpdateWithoutSupplier_invoice_itemsInput>
+  create: Prisma.XOR<Prisma.ProductCreateWithoutSupplier_invoice_itemsInput, Prisma.ProductUncheckedCreateWithoutSupplier_invoice_itemsInput>
+  where?: Prisma.ProductWhereInput
+}
+
+export type ProductUpdateToOneWithWhereWithoutSupplier_invoice_itemsInput = {
+  where?: Prisma.ProductWhereInput
+  data: Prisma.XOR<Prisma.ProductUpdateWithoutSupplier_invoice_itemsInput, Prisma.ProductUncheckedUpdateWithoutSupplier_invoice_itemsInput>
+}
+
+export type ProductUpdateWithoutSupplier_invoice_itemsInput = {
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  sku?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  barcode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  factory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cost_price?: Prisma.FloatFieldUpdateOperationsInput | number
+  sell_price?: Prisma.FloatFieldUpdateOperationsInput | number
+  stock_qty?: Prisma.IntFieldUpdateOperationsInput | number
+  low_stock_threshold?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  image_path?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  category?: Prisma.CategoryUpdateOneWithoutProductsNestedInput
+  sale_items?: Prisma.SaleItemUpdateManyWithoutProductNestedInput
+  refund_items?: Prisma.RefundItemUpdateManyWithoutProductNestedInput
+}
+
+export type ProductUncheckedUpdateWithoutSupplier_invoice_itemsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  sku?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  barcode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  category_id?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  factory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cost_price?: Prisma.FloatFieldUpdateOperationsInput | number
+  sell_price?: Prisma.FloatFieldUpdateOperationsInput | number
+  stock_qty?: Prisma.IntFieldUpdateOperationsInput | number
+  low_stock_threshold?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  image_path?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sale_items?: Prisma.SaleItemUncheckedUpdateManyWithoutProductNestedInput
+  refund_items?: Prisma.RefundItemUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductCreateManyCategoryInput = {
@@ -979,6 +1100,7 @@ export type ProductUpdateWithoutCategoryInput = {
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sale_items?: Prisma.SaleItemUpdateManyWithoutProductNestedInput
   refund_items?: Prisma.RefundItemUpdateManyWithoutProductNestedInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateWithoutCategoryInput = {
@@ -997,6 +1119,7 @@ export type ProductUncheckedUpdateWithoutCategoryInput = {
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sale_items?: Prisma.SaleItemUncheckedUpdateManyWithoutProductNestedInput
   refund_items?: Prisma.RefundItemUncheckedUpdateManyWithoutProductNestedInput
+  supplier_invoice_items?: Prisma.SupplierInvoiceItemUncheckedUpdateManyWithoutProductNestedInput
 }
 
 export type ProductUncheckedUpdateManyWithoutCategoryInput = {
@@ -1023,11 +1146,13 @@ export type ProductUncheckedUpdateManyWithoutCategoryInput = {
 export type ProductCountOutputType = {
   sale_items: number
   refund_items: number
+  supplier_invoice_items: number
 }
 
 export type ProductCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   sale_items?: boolean | ProductCountOutputTypeCountSale_itemsArgs
   refund_items?: boolean | ProductCountOutputTypeCountRefund_itemsArgs
+  supplier_invoice_items?: boolean | ProductCountOutputTypeCountSupplier_invoice_itemsArgs
 }
 
 /**
@@ -1054,6 +1179,13 @@ export type ProductCountOutputTypeCountRefund_itemsArgs<ExtArgs extends runtime.
   where?: Prisma.RefundItemWhereInput
 }
 
+/**
+ * ProductCountOutputType without action
+ */
+export type ProductCountOutputTypeCountSupplier_invoice_itemsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SupplierInvoiceItemWhereInput
+}
+
 
 export type ProductSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1073,6 +1205,7 @@ export type ProductSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
   sale_items?: boolean | Prisma.Product$sale_itemsArgs<ExtArgs>
   refund_items?: boolean | Prisma.Product$refund_itemsArgs<ExtArgs>
+  supplier_invoice_items?: boolean | Prisma.Product$supplier_invoice_itemsArgs<ExtArgs>
   _count?: boolean | Prisma.ProductCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["product"]>
 
@@ -1134,6 +1267,7 @@ export type ProductInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs
   category?: boolean | Prisma.Product$categoryArgs<ExtArgs>
   sale_items?: boolean | Prisma.Product$sale_itemsArgs<ExtArgs>
   refund_items?: boolean | Prisma.Product$refund_itemsArgs<ExtArgs>
+  supplier_invoice_items?: boolean | Prisma.Product$supplier_invoice_itemsArgs<ExtArgs>
   _count?: boolean | Prisma.ProductCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type ProductIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1149,6 +1283,7 @@ export type $ProductPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     category: Prisma.$CategoryPayload<ExtArgs> | null
     sale_items: Prisma.$SaleItemPayload<ExtArgs>[]
     refund_items: Prisma.$RefundItemPayload<ExtArgs>[]
+    supplier_invoice_items: Prisma.$SupplierInvoiceItemPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1562,6 +1697,7 @@ export interface Prisma__ProductClient<T, Null = never, ExtArgs extends runtime.
   category<T extends Prisma.Product$categoryArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$categoryArgs<ExtArgs>>): Prisma.Prisma__CategoryClient<runtime.Types.Result.GetResult<Prisma.$CategoryPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   sale_items<T extends Prisma.Product$sale_itemsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$sale_itemsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SaleItemPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   refund_items<T extends Prisma.Product$refund_itemsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$refund_itemsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RefundItemPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  supplier_invoice_items<T extends Prisma.Product$supplier_invoice_itemsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Product$supplier_invoice_itemsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SupplierInvoiceItemPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2070,6 +2206,30 @@ export type Product$refund_itemsArgs<ExtArgs extends runtime.Types.Extensions.In
   take?: number
   skip?: number
   distinct?: Prisma.RefundItemScalarFieldEnum | Prisma.RefundItemScalarFieldEnum[]
+}
+
+/**
+ * Product.supplier_invoice_items
+ */
+export type Product$supplier_invoice_itemsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SupplierInvoiceItem
+   */
+  select?: Prisma.SupplierInvoiceItemSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SupplierInvoiceItem
+   */
+  omit?: Prisma.SupplierInvoiceItemOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SupplierInvoiceItemInclude<ExtArgs> | null
+  where?: Prisma.SupplierInvoiceItemWhereInput
+  orderBy?: Prisma.SupplierInvoiceItemOrderByWithRelationInput | Prisma.SupplierInvoiceItemOrderByWithRelationInput[]
+  cursor?: Prisma.SupplierInvoiceItemWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SupplierInvoiceItemScalarFieldEnum | Prisma.SupplierInvoiceItemScalarFieldEnum[]
 }
 
 /**

@@ -62,7 +62,10 @@ export const ModelName = {
   SupplierTransaction: 'SupplierTransaction',
   User: 'User',
   Refund: 'Refund',
-  RefundItem: 'RefundItem'
+  RefundItem: 'RefundItem',
+  SupplierInvoice: 'SupplierInvoice',
+  SupplierInvoiceItem: 'SupplierInvoiceItem',
+  SupplierInvoiceHistory: 'SupplierInvoiceHistory'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -197,6 +200,8 @@ export const SupplierTransactionScalarFieldEnum = {
   type: 'type',
   amount: 'amount',
   notes: 'notes',
+  invoice_id: 'invoice_id',
+  seller_name: 'seller_name',
   created_at: 'created_at'
 } as const
 
@@ -236,6 +241,43 @@ export const RefundItemScalarFieldEnum = {
 } as const
 
 export type RefundItemScalarFieldEnum = (typeof RefundItemScalarFieldEnum)[keyof typeof RefundItemScalarFieldEnum]
+
+
+export const SupplierInvoiceScalarFieldEnum = {
+  id: 'id',
+  supplier_id: 'supplier_id',
+  total: 'total',
+  amount_paid: 'amount_paid',
+  notes: 'notes',
+  seller_name: 'seller_name',
+  invoice_date: 'invoice_date',
+  created_at: 'created_at'
+} as const
+
+export type SupplierInvoiceScalarFieldEnum = (typeof SupplierInvoiceScalarFieldEnum)[keyof typeof SupplierInvoiceScalarFieldEnum]
+
+
+export const SupplierInvoiceItemScalarFieldEnum = {
+  id: 'id',
+  invoice_id: 'invoice_id',
+  product_id: 'product_id',
+  qty: 'qty',
+  unit_cost: 'unit_cost'
+} as const
+
+export type SupplierInvoiceItemScalarFieldEnum = (typeof SupplierInvoiceItemScalarFieldEnum)[keyof typeof SupplierInvoiceItemScalarFieldEnum]
+
+
+export const SupplierInvoiceHistoryScalarFieldEnum = {
+  id: 'id',
+  invoice_id: 'invoice_id',
+  seller_name: 'seller_name',
+  action: 'action',
+  changes: 'changes',
+  created_at: 'created_at'
+} as const
+
+export type SupplierInvoiceHistoryScalarFieldEnum = (typeof SupplierInvoiceHistoryScalarFieldEnum)[keyof typeof SupplierInvoiceHistoryScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -77,3 +77,18 @@ export type Refund = Prisma.RefundModel
  * 
  */
 export type RefundItem = Prisma.RefundItemModel
+/**
+ * Model SupplierInvoice
+ * 
+ */
+export type SupplierInvoice = Prisma.SupplierInvoiceModel
+/**
+ * Model SupplierInvoiceItem
+ * 
+ */
+export type SupplierInvoiceItem = Prisma.SupplierInvoiceItemModel
+/**
+ * Model SupplierInvoiceHistory
+ * 
+ */
+export type SupplierInvoiceHistory = Prisma.SupplierInvoiceHistoryModel

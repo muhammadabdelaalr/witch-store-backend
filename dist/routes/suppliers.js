@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const suppliers_1 = require("../controllers/suppliers");
+const supplierInvoices_1 = require("../controllers/supplierInvoices");
 const router = (0, express_1.Router)();
 /**
  * @swagger
@@ -124,4 +125,8 @@ router.post('/transaction', suppliers_1.addSupplierTransaction);
  *           type: string
  */
 router.get('/:id/transactions', suppliers_1.getSupplierTransactions);
+router.post('/invoices', supplierInvoices_1.createSupplierInvoice);
+router.put('/invoices/:id', supplierInvoices_1.updateSupplierInvoice);
+router.get('/invoices', supplierInvoices_1.getSupplierInvoices);
+router.get('/invoices/:id/history', supplierInvoices_1.getSupplierInvoiceHistory);
 exports.default = router;

@@ -30,12 +30,14 @@ export type SupplierTransactionAvgAggregateOutputType = {
   id: number | null
   supplier_id: number | null
   amount: number | null
+  invoice_id: number | null
 }
 
 export type SupplierTransactionSumAggregateOutputType = {
   id: number | null
   supplier_id: number | null
   amount: number | null
+  invoice_id: number | null
 }
 
 export type SupplierTransactionMinAggregateOutputType = {
@@ -44,6 +46,8 @@ export type SupplierTransactionMinAggregateOutputType = {
   type: $Enums.SupplierTransactionType | null
   amount: number | null
   notes: string | null
+  invoice_id: number | null
+  seller_name: string | null
   created_at: Date | null
 }
 
@@ -53,6 +57,8 @@ export type SupplierTransactionMaxAggregateOutputType = {
   type: $Enums.SupplierTransactionType | null
   amount: number | null
   notes: string | null
+  invoice_id: number | null
+  seller_name: string | null
   created_at: Date | null
 }
 
@@ -62,6 +68,8 @@ export type SupplierTransactionCountAggregateOutputType = {
   type: number
   amount: number
   notes: number
+  invoice_id: number
+  seller_name: number
   created_at: number
   _all: number
 }
@@ -71,12 +79,14 @@ export type SupplierTransactionAvgAggregateInputType = {
   id?: true
   supplier_id?: true
   amount?: true
+  invoice_id?: true
 }
 
 export type SupplierTransactionSumAggregateInputType = {
   id?: true
   supplier_id?: true
   amount?: true
+  invoice_id?: true
 }
 
 export type SupplierTransactionMinAggregateInputType = {
@@ -85,6 +95,8 @@ export type SupplierTransactionMinAggregateInputType = {
   type?: true
   amount?: true
   notes?: true
+  invoice_id?: true
+  seller_name?: true
   created_at?: true
 }
 
@@ -94,6 +106,8 @@ export type SupplierTransactionMaxAggregateInputType = {
   type?: true
   amount?: true
   notes?: true
+  invoice_id?: true
+  seller_name?: true
   created_at?: true
 }
 
@@ -103,6 +117,8 @@ export type SupplierTransactionCountAggregateInputType = {
   type?: true
   amount?: true
   notes?: true
+  invoice_id?: true
+  seller_name?: true
   created_at?: true
   _all?: true
 }
@@ -199,6 +215,8 @@ export type SupplierTransactionGroupByOutputType = {
   type: $Enums.SupplierTransactionType
   amount: number
   notes: string | null
+  invoice_id: number | null
+  seller_name: string | null
   created_at: Date
   _count: SupplierTransactionCountAggregateOutputType | null
   _avg: SupplierTransactionAvgAggregateOutputType | null
@@ -231,8 +249,11 @@ export type SupplierTransactionWhereInput = {
   type?: Prisma.EnumSupplierTransactionTypeFilter<"SupplierTransaction"> | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFilter<"SupplierTransaction"> | number
   notes?: Prisma.StringNullableFilter<"SupplierTransaction"> | string | null
+  invoice_id?: Prisma.IntNullableFilter<"SupplierTransaction"> | number | null
+  seller_name?: Prisma.StringNullableFilter<"SupplierTransaction"> | string | null
   created_at?: Prisma.DateTimeFilter<"SupplierTransaction"> | Date | string
   supplier?: Prisma.XOR<Prisma.SupplierScalarRelationFilter, Prisma.SupplierWhereInput>
+  invoice?: Prisma.XOR<Prisma.SupplierInvoiceNullableScalarRelationFilter, Prisma.SupplierInvoiceWhereInput> | null
 }
 
 export type SupplierTransactionOrderByWithRelationInput = {
@@ -241,8 +262,11 @@ export type SupplierTransactionOrderByWithRelationInput = {
   type?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
+  invoice_id?: Prisma.SortOrderInput | Prisma.SortOrder
+  seller_name?: Prisma.SortOrderInput | Prisma.SortOrder
   created_at?: Prisma.SortOrder
   supplier?: Prisma.SupplierOrderByWithRelationInput
+  invoice?: Prisma.SupplierInvoiceOrderByWithRelationInput
 }
 
 export type SupplierTransactionWhereUniqueInput = Prisma.AtLeast<{
@@ -254,8 +278,11 @@ export type SupplierTransactionWhereUniqueInput = Prisma.AtLeast<{
   type?: Prisma.EnumSupplierTransactionTypeFilter<"SupplierTransaction"> | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFilter<"SupplierTransaction"> | number
   notes?: Prisma.StringNullableFilter<"SupplierTransaction"> | string | null
+  invoice_id?: Prisma.IntNullableFilter<"SupplierTransaction"> | number | null
+  seller_name?: Prisma.StringNullableFilter<"SupplierTransaction"> | string | null
   created_at?: Prisma.DateTimeFilter<"SupplierTransaction"> | Date | string
   supplier?: Prisma.XOR<Prisma.SupplierScalarRelationFilter, Prisma.SupplierWhereInput>
+  invoice?: Prisma.XOR<Prisma.SupplierInvoiceNullableScalarRelationFilter, Prisma.SupplierInvoiceWhereInput> | null
 }, "id">
 
 export type SupplierTransactionOrderByWithAggregationInput = {
@@ -264,6 +291,8 @@ export type SupplierTransactionOrderByWithAggregationInput = {
   type?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
+  invoice_id?: Prisma.SortOrderInput | Prisma.SortOrder
+  seller_name?: Prisma.SortOrderInput | Prisma.SortOrder
   created_at?: Prisma.SortOrder
   _count?: Prisma.SupplierTransactionCountOrderByAggregateInput
   _avg?: Prisma.SupplierTransactionAvgOrderByAggregateInput
@@ -281,6 +310,8 @@ export type SupplierTransactionScalarWhereWithAggregatesInput = {
   type?: Prisma.EnumSupplierTransactionTypeWithAggregatesFilter<"SupplierTransaction"> | $Enums.SupplierTransactionType
   amount?: Prisma.FloatWithAggregatesFilter<"SupplierTransaction"> | number
   notes?: Prisma.StringNullableWithAggregatesFilter<"SupplierTransaction"> | string | null
+  invoice_id?: Prisma.IntNullableWithAggregatesFilter<"SupplierTransaction"> | number | null
+  seller_name?: Prisma.StringNullableWithAggregatesFilter<"SupplierTransaction"> | string | null
   created_at?: Prisma.DateTimeWithAggregatesFilter<"SupplierTransaction"> | Date | string
 }
 
@@ -288,8 +319,10 @@ export type SupplierTransactionCreateInput = {
   type: $Enums.SupplierTransactionType
   amount: number
   notes?: string | null
+  seller_name?: string | null
   created_at?: Date | string
   supplier: Prisma.SupplierCreateNestedOneWithoutTransactionsInput
+  invoice?: Prisma.SupplierInvoiceCreateNestedOneWithoutTransactionsInput
 }
 
 export type SupplierTransactionUncheckedCreateInput = {
@@ -298,6 +331,8 @@ export type SupplierTransactionUncheckedCreateInput = {
   type: $Enums.SupplierTransactionType
   amount: number
   notes?: string | null
+  invoice_id?: number | null
+  seller_name?: string | null
   created_at?: Date | string
 }
 
@@ -305,8 +340,10 @@ export type SupplierTransactionUpdateInput = {
   type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   supplier?: Prisma.SupplierUpdateOneRequiredWithoutTransactionsNestedInput
+  invoice?: Prisma.SupplierInvoiceUpdateOneWithoutTransactionsNestedInput
 }
 
 export type SupplierTransactionUncheckedUpdateInput = {
@@ -315,6 +352,8 @@ export type SupplierTransactionUncheckedUpdateInput = {
   type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invoice_id?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -324,6 +363,8 @@ export type SupplierTransactionCreateManyInput = {
   type: $Enums.SupplierTransactionType
   amount: number
   notes?: string | null
+  invoice_id?: number | null
+  seller_name?: string | null
   created_at?: Date | string
 }
 
@@ -331,6 +372,7 @@ export type SupplierTransactionUpdateManyMutationInput = {
   type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -340,6 +382,8 @@ export type SupplierTransactionUncheckedUpdateManyInput = {
   type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invoice_id?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -359,6 +403,8 @@ export type SupplierTransactionCountOrderByAggregateInput = {
   type?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   notes?: Prisma.SortOrder
+  invoice_id?: Prisma.SortOrder
+  seller_name?: Prisma.SortOrder
   created_at?: Prisma.SortOrder
 }
 
@@ -366,6 +412,7 @@ export type SupplierTransactionAvgOrderByAggregateInput = {
   id?: Prisma.SortOrder
   supplier_id?: Prisma.SortOrder
   amount?: Prisma.SortOrder
+  invoice_id?: Prisma.SortOrder
 }
 
 export type SupplierTransactionMaxOrderByAggregateInput = {
@@ -374,6 +421,8 @@ export type SupplierTransactionMaxOrderByAggregateInput = {
   type?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   notes?: Prisma.SortOrder
+  invoice_id?: Prisma.SortOrder
+  seller_name?: Prisma.SortOrder
   created_at?: Prisma.SortOrder
 }
 
@@ -383,6 +432,8 @@ export type SupplierTransactionMinOrderByAggregateInput = {
   type?: Prisma.SortOrder
   amount?: Prisma.SortOrder
   notes?: Prisma.SortOrder
+  invoice_id?: Prisma.SortOrder
+  seller_name?: Prisma.SortOrder
   created_at?: Prisma.SortOrder
 }
 
@@ -390,6 +441,7 @@ export type SupplierTransactionSumOrderByAggregateInput = {
   id?: Prisma.SortOrder
   supplier_id?: Prisma.SortOrder
   amount?: Prisma.SortOrder
+  invoice_id?: Prisma.SortOrder
 }
 
 export type SupplierTransactionCreateNestedManyWithoutSupplierInput = {
@@ -438,11 +490,55 @@ export type EnumSupplierTransactionTypeFieldUpdateOperationsInput = {
   set?: $Enums.SupplierTransactionType
 }
 
+export type SupplierTransactionCreateNestedManyWithoutInvoiceInput = {
+  create?: Prisma.XOR<Prisma.SupplierTransactionCreateWithoutInvoiceInput, Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput> | Prisma.SupplierTransactionCreateWithoutInvoiceInput[] | Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput[]
+  connectOrCreate?: Prisma.SupplierTransactionCreateOrConnectWithoutInvoiceInput | Prisma.SupplierTransactionCreateOrConnectWithoutInvoiceInput[]
+  createMany?: Prisma.SupplierTransactionCreateManyInvoiceInputEnvelope
+  connect?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+}
+
+export type SupplierTransactionUncheckedCreateNestedManyWithoutInvoiceInput = {
+  create?: Prisma.XOR<Prisma.SupplierTransactionCreateWithoutInvoiceInput, Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput> | Prisma.SupplierTransactionCreateWithoutInvoiceInput[] | Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput[]
+  connectOrCreate?: Prisma.SupplierTransactionCreateOrConnectWithoutInvoiceInput | Prisma.SupplierTransactionCreateOrConnectWithoutInvoiceInput[]
+  createMany?: Prisma.SupplierTransactionCreateManyInvoiceInputEnvelope
+  connect?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+}
+
+export type SupplierTransactionUpdateManyWithoutInvoiceNestedInput = {
+  create?: Prisma.XOR<Prisma.SupplierTransactionCreateWithoutInvoiceInput, Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput> | Prisma.SupplierTransactionCreateWithoutInvoiceInput[] | Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput[]
+  connectOrCreate?: Prisma.SupplierTransactionCreateOrConnectWithoutInvoiceInput | Prisma.SupplierTransactionCreateOrConnectWithoutInvoiceInput[]
+  upsert?: Prisma.SupplierTransactionUpsertWithWhereUniqueWithoutInvoiceInput | Prisma.SupplierTransactionUpsertWithWhereUniqueWithoutInvoiceInput[]
+  createMany?: Prisma.SupplierTransactionCreateManyInvoiceInputEnvelope
+  set?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+  disconnect?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+  delete?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+  connect?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+  update?: Prisma.SupplierTransactionUpdateWithWhereUniqueWithoutInvoiceInput | Prisma.SupplierTransactionUpdateWithWhereUniqueWithoutInvoiceInput[]
+  updateMany?: Prisma.SupplierTransactionUpdateManyWithWhereWithoutInvoiceInput | Prisma.SupplierTransactionUpdateManyWithWhereWithoutInvoiceInput[]
+  deleteMany?: Prisma.SupplierTransactionScalarWhereInput | Prisma.SupplierTransactionScalarWhereInput[]
+}
+
+export type SupplierTransactionUncheckedUpdateManyWithoutInvoiceNestedInput = {
+  create?: Prisma.XOR<Prisma.SupplierTransactionCreateWithoutInvoiceInput, Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput> | Prisma.SupplierTransactionCreateWithoutInvoiceInput[] | Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput[]
+  connectOrCreate?: Prisma.SupplierTransactionCreateOrConnectWithoutInvoiceInput | Prisma.SupplierTransactionCreateOrConnectWithoutInvoiceInput[]
+  upsert?: Prisma.SupplierTransactionUpsertWithWhereUniqueWithoutInvoiceInput | Prisma.SupplierTransactionUpsertWithWhereUniqueWithoutInvoiceInput[]
+  createMany?: Prisma.SupplierTransactionCreateManyInvoiceInputEnvelope
+  set?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+  disconnect?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+  delete?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+  connect?: Prisma.SupplierTransactionWhereUniqueInput | Prisma.SupplierTransactionWhereUniqueInput[]
+  update?: Prisma.SupplierTransactionUpdateWithWhereUniqueWithoutInvoiceInput | Prisma.SupplierTransactionUpdateWithWhereUniqueWithoutInvoiceInput[]
+  updateMany?: Prisma.SupplierTransactionUpdateManyWithWhereWithoutInvoiceInput | Prisma.SupplierTransactionUpdateManyWithWhereWithoutInvoiceInput[]
+  deleteMany?: Prisma.SupplierTransactionScalarWhereInput | Prisma.SupplierTransactionScalarWhereInput[]
+}
+
 export type SupplierTransactionCreateWithoutSupplierInput = {
   type: $Enums.SupplierTransactionType
   amount: number
   notes?: string | null
+  seller_name?: string | null
   created_at?: Date | string
+  invoice?: Prisma.SupplierInvoiceCreateNestedOneWithoutTransactionsInput
 }
 
 export type SupplierTransactionUncheckedCreateWithoutSupplierInput = {
@@ -450,6 +546,8 @@ export type SupplierTransactionUncheckedCreateWithoutSupplierInput = {
   type: $Enums.SupplierTransactionType
   amount: number
   notes?: string | null
+  invoice_id?: number | null
+  seller_name?: string | null
   created_at?: Date | string
 }
 
@@ -488,7 +586,54 @@ export type SupplierTransactionScalarWhereInput = {
   type?: Prisma.EnumSupplierTransactionTypeFilter<"SupplierTransaction"> | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFilter<"SupplierTransaction"> | number
   notes?: Prisma.StringNullableFilter<"SupplierTransaction"> | string | null
+  invoice_id?: Prisma.IntNullableFilter<"SupplierTransaction"> | number | null
+  seller_name?: Prisma.StringNullableFilter<"SupplierTransaction"> | string | null
   created_at?: Prisma.DateTimeFilter<"SupplierTransaction"> | Date | string
+}
+
+export type SupplierTransactionCreateWithoutInvoiceInput = {
+  type: $Enums.SupplierTransactionType
+  amount: number
+  notes?: string | null
+  seller_name?: string | null
+  created_at?: Date | string
+  supplier: Prisma.SupplierCreateNestedOneWithoutTransactionsInput
+}
+
+export type SupplierTransactionUncheckedCreateWithoutInvoiceInput = {
+  id?: number
+  supplier_id: number
+  type: $Enums.SupplierTransactionType
+  amount: number
+  notes?: string | null
+  seller_name?: string | null
+  created_at?: Date | string
+}
+
+export type SupplierTransactionCreateOrConnectWithoutInvoiceInput = {
+  where: Prisma.SupplierTransactionWhereUniqueInput
+  create: Prisma.XOR<Prisma.SupplierTransactionCreateWithoutInvoiceInput, Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput>
+}
+
+export type SupplierTransactionCreateManyInvoiceInputEnvelope = {
+  data: Prisma.SupplierTransactionCreateManyInvoiceInput | Prisma.SupplierTransactionCreateManyInvoiceInput[]
+  skipDuplicates?: boolean
+}
+
+export type SupplierTransactionUpsertWithWhereUniqueWithoutInvoiceInput = {
+  where: Prisma.SupplierTransactionWhereUniqueInput
+  update: Prisma.XOR<Prisma.SupplierTransactionUpdateWithoutInvoiceInput, Prisma.SupplierTransactionUncheckedUpdateWithoutInvoiceInput>
+  create: Prisma.XOR<Prisma.SupplierTransactionCreateWithoutInvoiceInput, Prisma.SupplierTransactionUncheckedCreateWithoutInvoiceInput>
+}
+
+export type SupplierTransactionUpdateWithWhereUniqueWithoutInvoiceInput = {
+  where: Prisma.SupplierTransactionWhereUniqueInput
+  data: Prisma.XOR<Prisma.SupplierTransactionUpdateWithoutInvoiceInput, Prisma.SupplierTransactionUncheckedUpdateWithoutInvoiceInput>
+}
+
+export type SupplierTransactionUpdateManyWithWhereWithoutInvoiceInput = {
+  where: Prisma.SupplierTransactionScalarWhereInput
+  data: Prisma.XOR<Prisma.SupplierTransactionUpdateManyMutationInput, Prisma.SupplierTransactionUncheckedUpdateManyWithoutInvoiceInput>
 }
 
 export type SupplierTransactionCreateManySupplierInput = {
@@ -496,6 +641,8 @@ export type SupplierTransactionCreateManySupplierInput = {
   type: $Enums.SupplierTransactionType
   amount: number
   notes?: string | null
+  invoice_id?: number | null
+  seller_name?: string | null
   created_at?: Date | string
 }
 
@@ -503,7 +650,9 @@ export type SupplierTransactionUpdateWithoutSupplierInput = {
   type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  invoice?: Prisma.SupplierInvoiceUpdateOneWithoutTransactionsNestedInput
 }
 
 export type SupplierTransactionUncheckedUpdateWithoutSupplierInput = {
@@ -511,6 +660,8 @@ export type SupplierTransactionUncheckedUpdateWithoutSupplierInput = {
   type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invoice_id?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -519,6 +670,47 @@ export type SupplierTransactionUncheckedUpdateManyWithoutSupplierInput = {
   type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
   amount?: Prisma.FloatFieldUpdateOperationsInput | number
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invoice_id?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type SupplierTransactionCreateManyInvoiceInput = {
+  id?: number
+  supplier_id: number
+  type: $Enums.SupplierTransactionType
+  amount: number
+  notes?: string | null
+  seller_name?: string | null
+  created_at?: Date | string
+}
+
+export type SupplierTransactionUpdateWithoutInvoiceInput = {
+  type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  supplier?: Prisma.SupplierUpdateOneRequiredWithoutTransactionsNestedInput
+}
+
+export type SupplierTransactionUncheckedUpdateWithoutInvoiceInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  supplier_id?: Prisma.IntFieldUpdateOperationsInput | number
+  type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type SupplierTransactionUncheckedUpdateManyWithoutInvoiceInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  supplier_id?: Prisma.IntFieldUpdateOperationsInput | number
+  type?: Prisma.EnumSupplierTransactionTypeFieldUpdateOperationsInput | $Enums.SupplierTransactionType
+  amount?: Prisma.FloatFieldUpdateOperationsInput | number
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  seller_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -530,8 +722,11 @@ export type SupplierTransactionSelect<ExtArgs extends runtime.Types.Extensions.I
   type?: boolean
   amount?: boolean
   notes?: boolean
+  invoice_id?: boolean
+  seller_name?: boolean
   created_at?: boolean
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
+  invoice?: boolean | Prisma.SupplierTransaction$invoiceArgs<ExtArgs>
 }, ExtArgs["result"]["supplierTransaction"]>
 
 export type SupplierTransactionSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -540,8 +735,11 @@ export type SupplierTransactionSelectCreateManyAndReturn<ExtArgs extends runtime
   type?: boolean
   amount?: boolean
   notes?: boolean
+  invoice_id?: boolean
+  seller_name?: boolean
   created_at?: boolean
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
+  invoice?: boolean | Prisma.SupplierTransaction$invoiceArgs<ExtArgs>
 }, ExtArgs["result"]["supplierTransaction"]>
 
 export type SupplierTransactionSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -550,8 +748,11 @@ export type SupplierTransactionSelectUpdateManyAndReturn<ExtArgs extends runtime
   type?: boolean
   amount?: boolean
   notes?: boolean
+  invoice_id?: boolean
+  seller_name?: boolean
   created_at?: boolean
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
+  invoice?: boolean | Prisma.SupplierTransaction$invoiceArgs<ExtArgs>
 }, ExtArgs["result"]["supplierTransaction"]>
 
 export type SupplierTransactionSelectScalar = {
@@ -560,24 +761,30 @@ export type SupplierTransactionSelectScalar = {
   type?: boolean
   amount?: boolean
   notes?: boolean
+  invoice_id?: boolean
+  seller_name?: boolean
   created_at?: boolean
 }
 
-export type SupplierTransactionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "supplier_id" | "type" | "amount" | "notes" | "created_at", ExtArgs["result"]["supplierTransaction"]>
+export type SupplierTransactionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "supplier_id" | "type" | "amount" | "notes" | "invoice_id" | "seller_name" | "created_at", ExtArgs["result"]["supplierTransaction"]>
 export type SupplierTransactionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
+  invoice?: boolean | Prisma.SupplierTransaction$invoiceArgs<ExtArgs>
 }
 export type SupplierTransactionIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
+  invoice?: boolean | Prisma.SupplierTransaction$invoiceArgs<ExtArgs>
 }
 export type SupplierTransactionIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   supplier?: boolean | Prisma.SupplierDefaultArgs<ExtArgs>
+  invoice?: boolean | Prisma.SupplierTransaction$invoiceArgs<ExtArgs>
 }
 
 export type $SupplierTransactionPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "SupplierTransaction"
   objects: {
     supplier: Prisma.$SupplierPayload<ExtArgs>
+    invoice: Prisma.$SupplierInvoicePayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -585,6 +792,8 @@ export type $SupplierTransactionPayload<ExtArgs extends runtime.Types.Extensions
     type: $Enums.SupplierTransactionType
     amount: number
     notes: string | null
+    invoice_id: number | null
+    seller_name: string | null
     created_at: Date
   }, ExtArgs["result"]["supplierTransaction"]>
   composites: {}
@@ -981,6 +1190,7 @@ readonly fields: SupplierTransactionFieldRefs;
 export interface Prisma__SupplierTransactionClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   supplier<T extends Prisma.SupplierDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SupplierDefaultArgs<ExtArgs>>): Prisma.Prisma__SupplierClient<runtime.Types.Result.GetResult<Prisma.$SupplierPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  invoice<T extends Prisma.SupplierTransaction$invoiceArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SupplierTransaction$invoiceArgs<ExtArgs>>): Prisma.Prisma__SupplierInvoiceClient<runtime.Types.Result.GetResult<Prisma.$SupplierInvoicePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1015,6 +1225,8 @@ export interface SupplierTransactionFieldRefs {
   readonly type: Prisma.FieldRef<"SupplierTransaction", 'SupplierTransactionType'>
   readonly amount: Prisma.FieldRef<"SupplierTransaction", 'Float'>
   readonly notes: Prisma.FieldRef<"SupplierTransaction", 'String'>
+  readonly invoice_id: Prisma.FieldRef<"SupplierTransaction", 'Int'>
+  readonly seller_name: Prisma.FieldRef<"SupplierTransaction", 'String'>
   readonly created_at: Prisma.FieldRef<"SupplierTransaction", 'DateTime'>
 }
     
@@ -1414,6 +1626,25 @@ export type SupplierTransactionDeleteManyArgs<ExtArgs extends runtime.Types.Exte
    * Limit how many SupplierTransactions to delete.
    */
   limit?: number
+}
+
+/**
+ * SupplierTransaction.invoice
+ */
+export type SupplierTransaction$invoiceArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SupplierInvoice
+   */
+  select?: Prisma.SupplierInvoiceSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SupplierInvoice
+   */
+  omit?: Prisma.SupplierInvoiceOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SupplierInvoiceInclude<ExtArgs> | null
+  where?: Prisma.SupplierInvoiceWhereInput
 }
 
 /**

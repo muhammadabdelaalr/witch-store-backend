@@ -6,6 +6,12 @@ import {
   addSupplierTransaction,
   getSupplierTransactions,
 } from '../controllers/suppliers';
+import {
+  createSupplierInvoice,
+  updateSupplierInvoice,
+  getSupplierInvoices,
+  getSupplierInvoiceHistory,
+} from '../controllers/supplierInvoices';
 
 const router = Router();
 
@@ -134,5 +140,10 @@ router.post('/transaction', addSupplierTransaction);
  *           type: string
  */
 router.get('/:id/transactions', getSupplierTransactions);
+
+router.post('/invoices', createSupplierInvoice);
+router.put('/invoices/:id', updateSupplierInvoice);
+router.get('/invoices', getSupplierInvoices);
+router.get('/invoices/:id/history', getSupplierInvoiceHistory);
 
 export default router;

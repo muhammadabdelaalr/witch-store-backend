@@ -116,10 +116,15 @@ export const updateSupplier = async (req: Request, res: Response) => {
 export const addSupplierTransaction = async (req: Request, res: Response) => {
   try {
     const username = getUsername(req);
-    const { supplier_id, type, amount, notes } = req.body;
+    const { supplier_id, type, amount, notes, date, seller_name, invoice_id } = req.body;
 
     if (!supplier_id || !type || amount === undefined) {
       res.status(400).json({ error: 'supplier_id, type, and amount are required' });
+      return;
+    }
+
+    if (!notes || notes.trim() === '') {
+      res.status(400).json({ error: 'Notes are required for all supplier transactions' });
       return;
     }
 
@@ -130,6 +135,7 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
 
     const supplierIdInt = parseInt(supplier_id);
     const amountFloat = parseFloat(amount);
+    const invoiceIdInt = invoice_id ? parseInt(invoice_id) : undefined;
 
     const transaction = await prisma.$transaction(async (tx: any) => {
       // 1. Verify supplier exists
@@ -140,13 +146,30 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
         throw new Error('Supplier not found');
       }
 
+      // If invoice_id is provided, verify it exists and belongs to this supplier
+      let invoice = null;
+      if (invoiceIdInt) {
+        invoice = await tx.supplierInvoice.findUnique({
+          where: { id: invoiceIdInt },
+        });
+        if (!invoice) {
+          throw new Error('Supplier invoice not found');
+        }
+        if (invoice.supplier_id !== supplierIdInt) {
+          throw new Error('Invoice does not belong to this supplier');
+        }
+      }
+
       // 2. Create supplier transaction
       const newTx = await tx.supplierTransaction.create({
         data: {
           supplier_id: supplierIdInt,
           type,
           amount: amountFloat,
-          notes: notes || null,
+          notes: notes.trim(),
+          seller_name: seller_name || null,
+          invoice_id: invoiceIdInt || null,
+          created_at: date ? new Date(date) : new Date(),
         },
       });
 
@@ -162,6 +185,29 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
         },
       });
 
+      // 4. If linked to an invoice and is a payment, update the invoice's amount_paid
+      if (invoice && type === 'payment') {
+        const updatedInvoice = await tx.supplierInvoice.update({
+          where: { id: invoiceIdInt },
+          data: {
+            amount_paid: {
+              increment: amountFloat,
+            },
+          },
+        });
+
+        // Create a history log entry for the invoice
+        await tx.supplierInvoiceHistory.create({
+          data: {
+            invoice_id: invoiceIdInt!,
+            seller_name: seller_name || 'سيستم',
+            action: 'edit',
+            changes: `تسجيل سداد بقيمة ${amountFloat} ج.م - المدفوع الجديد: ${updatedInvoice.amount_paid} ج.م | [ملاحظة: ${notes.trim()}]`,
+            created_at: new Date(),
+          },
+        });
+      }
+
       return newTx;
     });
 
@@ -169,6 +215,7 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
       supplier_id: supplierIdInt,
       type,
       amount: amountFloat,
+      invoice_id: invoiceIdInt,
     });
 
     res.status(201).json(transaction);
