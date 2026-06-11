@@ -3,6 +3,8 @@ import { prisma } from '../prisma';
 
 export const createRefund = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const saleId = parseInt(req.params.id as string);
     if (isNaN(saleId)) {
       res.status(400).json({ error: 'Invalid sale ID' });
@@ -10,7 +12,6 @@ export const createRefund = async (req: Request, res: Response) => {
     }
 
     const { items, reason, seller_name } = req.body;
-    // items is an array of { product_id, qty }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({ error: 'Refund must contain at least one item' });
@@ -19,9 +20,9 @@ export const createRefund = async (req: Request, res: Response) => {
 
     // Start Prisma Transaction
     const refund = await prisma.$transaction(async (tx: any) => {
-      // 1. Fetch the original sale
-      const sale = await tx.sale.findUnique({
-        where: { id: saleId },
+      // 1. Fetch the original sale and make sure it belongs to the tenant
+      const sale = await tx.sale.findFirst({
+        where: { id: saleId, company_id: companyId },
         include: { items: true, refunds: { include: { items: true } } },
       });
 
@@ -30,7 +31,6 @@ export const createRefund = async (req: Request, res: Response) => {
       }
 
       // 2. Validate refund quantities against original sale AND past refunds
-      // Calculate max refundable quantities
       const maxRefundable: Record<number, { maxQty: number, unitPrice: number, costPrice: number }> = {};
       for (const saleItem of sale.items) {
         maxRefundable[saleItem.product_id] = {
@@ -40,7 +40,6 @@ export const createRefund = async (req: Request, res: Response) => {
         };
       }
 
-      // Deduct already refunded items (or lock them out completely based on the new rule)
       for (const pastRefund of sale.refunds) {
         for (const refundItem of pastRefund.items) {
           if (maxRefundable[refundItem.product_id]) {
@@ -77,7 +76,30 @@ export const createRefund = async (req: Request, res: Response) => {
           cost_price: maxRefundable[productIdInt].costPrice,
         });
 
-        // 3. Restock inventory
+        // 3. Restock inventory at branch level
+        await tx.productStock.upsert({
+          where: {
+            company_id_branch_id_product_id: {
+              company_id: companyId,
+              branch_id: branchId,
+              product_id: productIdInt,
+            },
+          },
+          update: {
+            stock_qty: {
+              increment: qtyInt,
+            },
+          },
+          create: {
+            company_id: companyId,
+            branch_id: branchId,
+            product_id: productIdInt,
+            stock_qty: qtyInt,
+            low_stock_threshold: 5,
+          },
+        });
+
+        // Also restock core fallback stock_qty column
         await tx.product.update({
           where: { id: productIdInt },
           data: {
@@ -89,7 +111,7 @@ export const createRefund = async (req: Request, res: Response) => {
       }
 
       if (verifiedRefundItems.length === 0) {
-         throw new Error('No valid items to refund');
+        throw new Error('No valid items to refund');
       }
 
       // Calculate final refund total matching invoice structure
@@ -100,6 +122,8 @@ export const createRefund = async (req: Request, res: Response) => {
       // 4. Create the Refund record
       const newRefund = await tx.refund.create({
         data: {
+          company_id: companyId,
+          branch_id: branchId,
           sale_id: sale.id,
           total: refundTotal,
           reason: reason || null,
@@ -112,31 +136,37 @@ export const createRefund = async (req: Request, res: Response) => {
 
       // 5. Update Customer Ledger if Customer is attached
       if (sale.customer_id) {
-        // Create customer ledger transaction for the refund
-        await tx.customerTransaction.create({
-          data: {
-            customer_id: sale.customer_id,
-            type: 'payment', // A refund acts like a payment from the customer's perspective
-            amount: refundTotal,
-            notes: `Refund for Sale #${sale.id}`,
-          },
+        const customer = await tx.customer.findFirst({
+          where: { id: sale.customer_id, company_id: companyId },
         });
-
-        // Update customer balance (decrement debt)
-        await tx.customer.update({
-          where: { id: sale.customer_id },
-          data: {
-            balance: {
-              decrement: refundTotal,
+        if (customer) {
+          // Create customer ledger transaction for the refund
+          await tx.customerTransaction.create({
+            data: {
+              company_id: companyId,
+              customer_id: sale.customer_id,
+              type: 'payment',
+              amount: refundTotal,
+              notes: `Refund for Sale #${sale.id}`,
             },
-          },
-        });
+          });
+
+          // Update customer balance
+          await tx.customer.update({
+            where: { id: sale.customer_id },
+            data: {
+              balance: {
+                decrement: refundTotal,
+              },
+            },
+          });
+        }
       }
 
       // 6. User Activity Log
       if (seller_name) {
-        const user = await tx.user.findUnique({
-          where: { name: seller_name },
+        const user = await tx.user.findFirst({
+          where: { name: seller_name, company_id: companyId },
         });
         if (user) {
           const logs = JSON.parse(user.logs || '[]');
@@ -155,7 +185,7 @@ export const createRefund = async (req: Request, res: Response) => {
       return newRefund;
     }, {
       maxWait: 15000,
-      timeout: 30000
+      timeout: 30000,
     });
 
     res.status(201).json(refund);

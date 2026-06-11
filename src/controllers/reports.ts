@@ -3,6 +3,8 @@ import { prisma } from '../prisma';
 
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
 
     const todayStart = new Date();
@@ -15,10 +17,12 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     let todayTransactionsCount = 0;
 
     if (categoryId) {
-      // Find sale items for products in category sold today
+      // Find sale items for products in category sold today at this branch/company
       const saleItems = await prisma.saleItem.findMany({
         where: {
           sale: {
+            company_id: companyId,
+            branch_id: branchId,
             created_at: { gte: todayStart, lte: todayEnd },
           },
           product: {
@@ -30,15 +34,14 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         },
       });
 
-      // Sum revenue (unit_price * qty)
       todayRevenue = saleItems.reduce((sum: number, item: any) => sum + item.unit_price * item.qty, 0);
-
-      // Unique sales count
       const uniqueSaleIds = new Set(saleItems.map((item: any) => item.sale_id));
       todayTransactionsCount = uniqueSaleIds.size;
     } else {
       const salesToday = await prisma.sale.findMany({
         where: {
+          company_id: companyId,
+          branch_id: branchId,
           created_at: { gte: todayStart, lte: todayEnd },
         },
       });
@@ -47,25 +50,28 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     }
 
     // 2. Customer Count
-    const customerCount = await prisma.customer.count();
+    const customerCount = await prisma.customer.count({
+      where: { company_id: companyId },
+    });
 
-    // 3. Low Stock Items Count
+    // 3. Low Stock Items Count at branch level
     let lowStockCount = 0;
-    if (categoryId) {
-      const products = await prisma.product.findMany({
-        where: {
-          category_id: categoryId,
+    const products = await prisma.product.findMany({
+      where: {
+        company_id: companyId,
+        ...(categoryId ? { category_id: categoryId } : {}),
+      },
+      include: {
+        product_stocks: {
+          where: { branch_id: branchId },
         },
-      });
-      lowStockCount = products.filter(
-        (p: any) => p.stock_qty <= (p.low_stock_threshold ?? 5)
-      ).length;
-    } else {
-      const products = await prisma.product.findMany();
-      lowStockCount = products.filter(
-        (p: any) => p.stock_qty <= (p.low_stock_threshold ?? 5)
-      ).length;
-    }
+      },
+    });
+
+    lowStockCount = products.filter((p: any) => {
+      const ps = p.product_stocks[0];
+      return (ps ? ps.stock_qty : 0) <= (ps ? ps.low_stock_threshold : 5);
+    }).length;
 
     // 4. Weekly Sales Data (Last 7 Days)
     const sevenDaysAgo = new Date();
@@ -74,6 +80,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 
     const weeklySales = await prisma.sale.findMany({
       where: {
+        company_id: companyId,
+        branch_id: branchId,
         created_at: { gte: sevenDaysAgo },
         ...(categoryId
           ? {
@@ -129,6 +137,10 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     // 5. Top Selling Products (Top 5)
     const topItems = await prisma.saleItem.findMany({
       where: {
+        sale: {
+          company_id: companyId,
+          branch_id: branchId,
+        },
         ...(categoryId
           ? {
               product: {
@@ -162,6 +174,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5);
+
     res.json({
       todayRevenue,
       todayTransactionsCount,
@@ -177,6 +190,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 
 export const getSalesReport = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const { from, to, sale_type } = req.query;
 
     if (!from || !to) {
@@ -189,6 +204,8 @@ export const getSalesReport = async (req: Request, res: Response) => {
 
     const sales = await prisma.sale.findMany({
       where: {
+        company_id: companyId,
+        branch_id: branchId,
         created_at: {
           gte: startDate,
           lte: endDate,
@@ -255,6 +272,8 @@ export const getSalesReport = async (req: Request, res: Response) => {
 
     const refunds = await prisma.refund.findMany({
       where: {
+        company_id: companyId,
+        branch_id: branchId,
         created_at: {
           gte: startDate,
           lte: endDate,
@@ -263,7 +282,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
       },
       include: {
         items: true,
-      }
+      },
     });
 
     refunds.forEach((refund: any) => {
@@ -303,7 +322,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
         total: paymentMethods[method].total,
         count: paymentMethods[method].count,
       }))
-      .filter((m) => m.count > 0); // Only return used methods
+      .filter((m) => m.count > 0);
 
     res.json({
       totalSales: sales.length,
@@ -321,6 +340,8 @@ export const getSalesReport = async (req: Request, res: Response) => {
 
 export const getProfitReport = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const { from, to, sale_type } = req.query;
 
     if (!from || !to) {
@@ -333,6 +354,8 @@ export const getProfitReport = async (req: Request, res: Response) => {
 
     const sales = await prisma.sale.findMany({
       where: {
+        company_id: companyId,
+        branch_id: branchId,
         created_at: {
           gte: startDate,
           lte: endDate,
@@ -367,6 +390,8 @@ export const getProfitReport = async (req: Request, res: Response) => {
 
     const refunds = await prisma.refund.findMany({
       where: {
+        company_id: companyId,
+        branch_id: branchId,
         created_at: {
           gte: startDate,
           lte: endDate,
@@ -375,7 +400,7 @@ export const getProfitReport = async (req: Request, res: Response) => {
       },
       include: {
         items: true,
-      }
+      },
     });
 
     refunds.forEach((refund: any) => {
@@ -399,6 +424,8 @@ export const getProfitReport = async (req: Request, res: Response) => {
 
     const expenses = await prisma.expense.findMany({
       where: {
+        company_id: companyId,
+        branch_id: branchId,
         date: {
           gte: from as string,
           lte: to as string,

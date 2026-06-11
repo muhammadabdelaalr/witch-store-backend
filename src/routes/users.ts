@@ -8,8 +8,14 @@ import {
   syncActiveUser,
   logoutUser,
 } from '../controllers/users';
+import { authTokenMiddleware } from '../middleware/auth';
+import { tenantResolverMiddleware } from '../middleware/tenant';
+import { requireModule } from '../middleware/guards';
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
 
 /**
  * @swagger
@@ -48,8 +54,8 @@ const router = Router();
  *       200:
  *         description: Success
  */
-router.get('/', getAllUsers);
-router.post('/', createUser);
+router.get('/', requireModule('users'), getAllUsers);
+router.post('/', requireModule('users'), createUser);
 
 /**
  * @swagger
@@ -90,8 +96,8 @@ router.post('/', createUser);
  *         schema:
  *           type: string
  */
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
+router.put('/:id', requireModule('users'), updateUser);
+router.delete('/:id', requireModule('users'), deleteUser);
 
 /**
  * @swagger

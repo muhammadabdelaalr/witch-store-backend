@@ -4,8 +4,14 @@ import {
   getSalesReport,
   getProfitReport,
 } from '../controllers/reports';
+import { authTokenMiddleware } from '../middleware/auth';
+import { tenantResolverMiddleware } from '../middleware/tenant';
+import { requireModule } from '../middleware/guards';
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
 
 /**
  * @swagger
@@ -24,7 +30,7 @@ const router = Router();
  *       200:
  *         description: Success
  */
-router.get('/dashboard', getDashboardStats);
+router.get('/dashboard', requireModule('dashboard'), getDashboardStats);
 
 /**
  * @swagger
@@ -36,7 +42,7 @@ router.get('/dashboard', getDashboardStats);
  *       200:
  *         description: Success
  */
-router.get('/sales', getSalesReport);
+router.get('/sales', requireModule('reports'), getSalesReport);
 
 /**
  * @swagger
@@ -48,6 +54,6 @@ router.get('/sales', getSalesReport);
  *       200:
  *         description: Success
  */
-router.get('/profit', getProfitReport);
+router.get('/profit', requireModule('reports'), getProfitReport);
 
 export default router;

@@ -1,33 +1,358 @@
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
+
 datasource db {
   provider = "postgresql"
 }
 
+// ==========================================
+// SAAS / MULTI-TENANCY CONTROL LAYER MODELS
+// ==========================================
+
+model Company {
+  id          Int      @id @default(autoincrement())
+  name        String
+  legal_name  String?
+  phone       String?
+  email       String?
+  address     String?
+  status      String   @default("active") // active | suspended | expired
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  branches               Branch[]
+  licenses               License[]
+  devices                DeviceActivation[]
+  subscriptions          Subscription[]
+  payments               Payment[]
+  categories             Category[]
+  products               Product[]
+  customers              Customer[]
+  suppliers              Supplier[]
+  sales                  Sale[]
+  expenses               Expense[]
+  customer_transactions  CustomerTransaction[]
+  supplier_transactions  SupplierTransaction[]
+  supplier_invoices      SupplierInvoice[]
+  users                  User[]
+  refunds                Refund[]
+  supplier_invoice_history SupplierInvoiceHistory[]
+  product_stocks         ProductStock[]
+
+  @@map("companies")
+}
+
+model Branch {
+  id          Int      @id @default(autoincrement())
+  company_id  Int
+  company     Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  name        String
+  address     String?
+  phone       String?
+  is_main     Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  products            Product[]
+  sales               Sale[]
+  refunds             Refund[]
+  expenses            Expense[]
+  supplier_invoices   SupplierInvoice[]
+  users               User[]
+  product_stocks      ProductStock[]
+
+  @@map("branches")
+}
+
+model Module {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  name        String
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  plan_modules    PlanModule[]
+  license_modules LicenseModule[]
+
+  @@map("modules")
+}
+
+model Feature {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  name        String
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  plan_features    PlanFeature[]
+  license_features LicenseFeature[]
+
+  @@map("features")
+}
+
+model Plan {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?
+  price_monthly Float
+  price_yearly  Float
+  is_lifetime   Boolean  @default(false)
+  max_users     Int      @default(5)
+  max_devices   Int      @default(5)
+  max_branches  Int      @default(1)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  plan_modules  PlanModule[]
+  plan_features PlanFeature[]
+  licenses      License[]
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model PlanModule {
+  id         Int      @id @default(autoincrement())
+  plan_id    Int
+  plan       Plan     @relation(fields: [plan_id], references: [id], onDelete: Cascade)
+  module_id  Int
+  module     Module   @relation(fields: [module_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now())
+
+  @@unique([plan_id, module_id])
+  @@map("plan_modules")
+}
+
+model PlanFeature {
+  id         Int      @id @default(autoincrement())
+  plan_id    Int
+  plan       Plan     @relation(fields: [plan_id], references: [id], onDelete: Cascade)
+  feature_id Int
+  feature    Feature  @relation(fields: [feature_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now())
+
+  @@unique([plan_id, feature_id])
+  @@map("plan_features")
+}
+
+model License {
+  id                Int      @id @default(autoincrement())
+  company_id        Int
+  company           Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  plan_id           Int
+  plan              Plan     @relation(fields: [plan_id], references: [id])
+  license_key       String   @unique
+  type              String   @default("subscription") // trial | subscription | lifetime
+  status            String   @default("active") // active | expired | suspended | cancelled
+  starts_at         DateTime @default(now())
+  expires_at        DateTime?
+  max_devices       Int      @default(5)
+  max_users         Int      @default(5)
+  max_branches      Int      @default(1)
+  allow_all_modules Boolean  @default(false)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  license_modules   LicenseModule[]
+  license_features  LicenseFeature[]
+  devices           DeviceActivation[]
+  subscriptions     Subscription[]
+
+  @@map("licenses")
+}
+
+model LicenseModule {
+  id         Int      @id @default(autoincrement())
+  license_id Int
+  license    License  @relation(fields: [license_id], references: [id], onDelete: Cascade)
+  module_id  Int
+  module     Module   @relation(fields: [module_id], references: [id], onDelete: Cascade)
+  is_enabled Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([license_id, module_id])
+  @@map("license_modules")
+}
+
+model LicenseFeature {
+  id          Int      @id @default(autoincrement())
+  license_id  Int
+  license     License  @relation(fields: [license_id], references: [id], onDelete: Cascade)
+  feature_id  Int
+  feature     Feature  @relation(fields: [feature_id], references: [id], onDelete: Cascade)
+  is_enabled  Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@unique([license_id, feature_id])
+  @@map("license_features")
+}
+
+model DeviceActivation {
+  id           Int      @id @default(autoincrement())
+  company_id   Int
+  company      Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  license_id   Int
+  license      License  @relation(fields: [license_id], references: [id], onDelete: Cascade)
+  device_id    String
+  device_name  String?
+  platform     String?
+  app_version  String?
+  activated_at DateTime @default(now())
+  last_seen_at DateTime @default(now())
+  status       String   @default("active") // active | blocked
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@unique([license_id, device_id])
+  @@map("device_activations")
+}
+
+model Subscription {
+  id                   Int       @id @default(autoincrement())
+  company_id           Int
+  company              Company   @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  license_id           Int
+  license              License   @relation(fields: [license_id], references: [id], onDelete: Cascade)
+  plan_id              Int
+  plan                 Plan      @relation(fields: [plan_id], references: [id])
+  status               String    @default("active") // active | past_due | expired | cancelled
+  billing_cycle        String    @default("monthly") // monthly | yearly | lifetime
+  current_period_start DateTime  @default(now())
+  current_period_end   DateTime
+  cancelled_at         DateTime?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+  payments             Payment[]
+
+  @@map("subscriptions")
+}
+
+model PaymentProvider {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique // manual | paymob | fawry | stripe
+  name        String
+  is_active   Boolean  @default(true)
+  config      String?  // encrypted JSON
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  payments    Payment[]
+
+  @@map("payment_providers")
+}
+
+model Payment {
+  id              Int              @id @default(autoincrement())
+  company_id      Int
+  company         Company          @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  subscription_id Int?
+  subscription    Subscription?    @relation(fields: [subscription_id], references: [id], onDelete: SetNull)
+  amount          Float
+  currency        String           @default("EGP")
+  method          String
+  status          String           @default("pending") // pending | failed | paid | refunded
+  paid_at         DateTime?
+  notes           String?
+  provider_id     Int?
+  provider        PaymentProvider? @relation(fields: [provider_id], references: [id], onDelete: SetNull)
+  provider_reference String?
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+
+  @@map("payments")
+}
+
+model OwnerAdminUser {
+  id            Int             @id @default(autoincrement())
+  name          String
+  email         String          @unique
+  password_hash String
+  role          String          @default("owner") // owner | support | sales
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @updatedAt
+  audit_logs    OwnerAuditLog[]
+
+  @@map("owner_admin_users")
+}
+
+model OwnerAuditLog {
+  id             Int             @id @default(autoincrement())
+  owner_user_id  Int?
+  owner_user     OwnerAdminUser? @relation(fields: [owner_user_id], references: [id], onDelete: SetNull)
+  action         String
+  entity_type    String
+  entity_id      Int?
+  details        String?
+  created_at     DateTime        @default(now())
+
+  @@map("owner_audit_logs")
+}
+
+model LicenseAuditLog {
+  id              Int      @id @default(autoincrement())
+  license_id      Int
+  owner_user_id   Int?
+  action          String
+  old_value       String?
+  new_value       String?
+  details         String?
+  created_at      DateTime @default(now())
+
+  @@map("license_audit_logs")
+}
+
+model RefreshToken {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique
+  user_name  String
+  device_id  String
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ==========================================
+// BUSINESS MODELS (MULTI-TENANT CAPABLE)
+// ==========================================
+
 model Category {
   id         Int       @id @default(autoincrement())
-  name       String    @unique
+  company_id Int
+  company    Company   @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  name       String
   created_at DateTime  @default(now())
   products   Product[]
   expenses   Expense[]
 
+  @@unique([company_id, name])
   @@map("categories")
 }
 
 model Product {
   id                  Int        @id @default(autoincrement())
+  company_id          Int
+  company             Company    @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id           Int?
+  branch              Branch?    @relation(fields: [branch_id], references: [id], onDelete: SetNull)
   name                String
-  sku                 String?    @unique
-  barcode             String?    @unique
+  sku                 String?
+  barcode             String?
   category_id         Int?
   category            Category?  @relation(fields: [category_id], references: [id])
   factory             String?
   description         String?
   cost_price          Float      @default(0)
   sell_price          Float      @default(0)
-  stock_qty           Int        @default(0)
+  stock_qty           Int        @default(0) // Kept for safety during migration
   low_stock_threshold Int?       @default(5)
   image_path          String?
   created_at          DateTime   @default(now())
@@ -35,15 +360,41 @@ model Product {
   sale_items          SaleItem[]
   refund_items        RefundItem[]
   supplier_invoice_items SupplierInvoiceItem[]
+  product_stocks      ProductStock[]
 
+  @@unique([company_id, sku])
+  @@unique([company_id, barcode])
   @@index([barcode], map: "idx_products_barcode")
   @@index([sku], map: "idx_products_sku")
   @@index([category_id], map: "idx_products_category")
   @@map("products")
 }
 
+model ProductStock {
+  id                  Int      @id @default(autoincrement())
+  company_id          Int
+  branch_id           Int
+  product_id          Int
+  stock_qty           Int      @default(0)
+  low_stock_threshold Int      @default(5)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  company             Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch              Branch   @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  product             Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([company_id, branch_id, product_id])
+  @@index([company_id])
+  @@index([branch_id])
+  @@index([product_id])
+  @@map("product_stocks")
+}
+
 model Customer {
   id           Int                   @id @default(autoincrement())
+  company_id   Int
+  company      Company               @relation(fields: [company_id], references: [id], onDelete: Cascade)
   name         String
   phone        String?
   email        String?
@@ -53,11 +404,14 @@ model Customer {
   sales        Sale[]
   transactions CustomerTransaction[]
 
+  @@unique([company_id, phone])
   @@map("customers")
 }
 
 model Supplier {
   id           Int                   @id @default(autoincrement())
+  company_id   Int
+  company      Company               @relation(fields: [company_id], references: [id], onDelete: Cascade)
   name         String
   phone        String?
   email        String?
@@ -67,6 +421,7 @@ model Supplier {
   transactions SupplierTransaction[]
   invoices     SupplierInvoice[]
 
+  @@unique([company_id, phone])
   @@map("suppliers")
 }
 
@@ -86,6 +441,10 @@ enum SaleType {
 
 model Sale {
   id             Int           @id @default(autoincrement())
+  company_id     Int
+  company        Company       @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id      Int?
+  branch         Branch?       @relation(fields: [branch_id], references: [id], onDelete: SetNull)
   customer_id    Int?
   customer       Customer?     @relation(fields: [customer_id], references: [id])
   customer_name  String?
@@ -123,6 +482,10 @@ model SaleItem {
 
 model Expense {
   id          Int       @id @default(autoincrement())
+  company_id  Int
+  company     Company   @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id   Int?
+  branch      Branch?   @relation(fields: [branch_id], references: [id], onDelete: SetNull)
   category_id Int?
   categoryRel Category? @relation(fields: [category_id], references: [id])
   category    String
@@ -143,6 +506,8 @@ enum CustomerTransactionType {
 
 model CustomerTransaction {
   id          Int                     @id @default(autoincrement())
+  company_id  Int
+  company     Company                 @relation(fields: [company_id], references: [id], onDelete: Cascade)
   customer_id Int
   customer    Customer                @relation(fields: [customer_id], references: [id])
   type        CustomerTransactionType
@@ -161,6 +526,8 @@ enum SupplierTransactionType {
 
 model SupplierTransaction {
   id          Int                     @id @default(autoincrement())
+  company_id  Int
+  company     Company                 @relation(fields: [company_id], references: [id], onDelete: Cascade)
   supplier_id Int
   supplier    Supplier                @relation(fields: [supplier_id], references: [id])
   type        SupplierTransactionType
@@ -178,16 +545,25 @@ model SupplierTransaction {
 
 model User {
   id         Int      @id @default(autoincrement())
-  name       String   @unique
+  company_id Int
+  company    Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id  Int?
+  branch     Branch?  @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  name       String
   phone      String
   logs       String   @default("[]") // JSON string storing activity logs
   created_at DateTime @default(now())
 
+  @@unique([company_id, name])
   @@map("users")
 }
 
 model Refund {
   id          Int          @id @default(autoincrement())
+  company_id  Int
+  company     Company      @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id   Int?         @default(1)
+  branch      Branch?      @relation(fields: [branch_id], references: [id], onDelete: SetNull)
   sale_id     Int
   sale        Sale         @relation(fields: [sale_id], references: [id])
   total       Float
@@ -216,6 +592,10 @@ model RefundItem {
 
 model SupplierInvoice {
   id           Int                      @id @default(autoincrement())
+  company_id   Int
+  company      Company                  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id    Int?
+  branch       Branch?                  @relation(fields: [branch_id], references: [id], onDelete: SetNull)
   supplier_id  Int
   supplier     Supplier                 @relation(fields: [supplier_id], references: [id])
   total        Float
@@ -249,6 +629,8 @@ model SupplierInvoiceItem {
 
 model SupplierInvoiceHistory {
   id          Int             @id @default(autoincrement())
+  company_id  Int
+  company     Company         @relation(fields: [company_id], references: [id], onDelete: Cascade)
   invoice_id  Int
   invoice     SupplierInvoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
   seller_name String
@@ -258,4 +640,3 @@ model SupplierInvoiceHistory {
 
   @@map("supplier_invoice_history")
 }
-

@@ -1,7 +1,14 @@
 import { Router } from "express";
 import { getAllCategories, createCategory } from "../controllers/categories";
+import { authTokenMiddleware } from "../middleware/auth";
+import { tenantResolverMiddleware } from "../middleware/tenant";
+import { requireModule } from "../middleware/guards";
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
+router.use(requireModule('products')); // products module covers category settings
 
 /**
  * @swagger
@@ -16,6 +23,8 @@ const router = Router();
  *   get:
  *     summary: Retrieve a list of categories
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: A list of categories
@@ -41,6 +50,8 @@ router.get("/", getAllCategories);
  *   post:
  *     summary: Create a new category
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:

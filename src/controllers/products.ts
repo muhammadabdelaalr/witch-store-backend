@@ -3,6 +3,8 @@ import { prisma, logUserActivity, getUsername } from '../prisma';
 
 export const getAllProducts = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
     const search = req.query.search as string | undefined;
     const lowStock = req.query.lowStock === 'true';
@@ -10,7 +12,9 @@ export const getAllProducts = async (req: Request, res: Response) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = {
+      company_id: companyId,
+    };
 
     if (categoryId) {
       where.category_id = categoryId;
@@ -26,29 +30,19 @@ export const getAllProducts = async (req: Request, res: Response) => {
       ];
     }
 
-    if (lowStock) {
-      where.AND = [
-        ...(where.AND || []),
-        {
-          OR: [
-            { stock_qty: { lte: 0 } },
-            {
-              stock_qty: {
-                lte: prisma.product.fields.low_stock_threshold
-              }
-            }
-          ]
-        }
-      ];
-    }
-
     let products: any[];
     let total = 0;
 
     if (lowStock) {
-      let queryStr = `SELECT p.* FROM products p WHERE p.stock_qty <= COALESCE(p.low_stock_threshold, 5)`;
-      const queryParams: any[] = [];
-      let paramCount = 1;
+      // Use raw SQL to handle field-to-field comparison for low stock threshold at the branch level
+      let queryStr = `
+        SELECT p.*
+        FROM products p
+        INNER JOIN product_stocks ps ON ps.product_id = p.id
+        WHERE p.company_id = $1 AND ps.branch_id = $2 AND ps.stock_qty <= ps.low_stock_threshold
+      `;
+      const queryParams: any[] = [companyId, branchId];
+      let paramCount = 3;
 
       if (categoryId) {
         queryStr += ` AND p.category_id = $${paramCount++}`;
@@ -68,19 +62,54 @@ export const getAllProducts = async (req: Request, res: Response) => {
       queryStr += ` ORDER BY p.name ASC LIMIT $${paramCount++} OFFSET $${paramCount++}`;
       queryParams.push(limit, skip);
 
-      products = await prisma.$queryRawUnsafe(queryStr, ...queryParams);
+      const rawProducts: any[] = await prisma.$queryRawUnsafe(queryStr, ...queryParams);
+
+      const productIds = rawProducts.map((p) => p.id);
+      const productStocks = await prisma.productStock.findMany({
+        where: { product_id: { in: productIds }, branch_id: branchId },
+      });
+
+      const categoryIds = rawProducts.map((p) => p.category_id).filter((id) => id !== null) as number[];
+      const categories = await prisma.category.findMany({
+        where: { id: { in: categoryIds } },
+      });
+
+      products = rawProducts.map((p) => {
+        const cat = categories.find((c) => c.id === p.category_id);
+        const ps = productStocks.find((s) => s.product_id === p.id);
+        return {
+          ...p,
+          category: cat || null,
+          stock_qty: ps ? ps.stock_qty : 0,
+          low_stock_threshold: ps ? ps.low_stock_threshold : 5,
+        };
+      });
     } else {
       const [data, count] = await Promise.all([
         prisma.product.findMany({
           where,
-          include: { category: true },
+          include: {
+            category: true,
+            product_stocks: {
+              where: { branch_id: branchId },
+            },
+          },
           orderBy: { name: 'asc' },
           skip,
           take: limit,
         }),
         prisma.product.count({ where }),
       ]);
-      products = data;
+
+      products = data.map((p) => {
+        const ps = p.product_stocks[0];
+        return {
+          ...p,
+          stock_qty: ps ? ps.stock_qty : 0,
+          low_stock_threshold: ps ? ps.low_stock_threshold : 5,
+          product_stocks: undefined,
+        };
+      });
       total = count;
     }
 
@@ -100,38 +129,62 @@ export const getAllProducts = async (req: Request, res: Response) => {
 
 export const getProductByBarcode = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const query = req.query.query as string;
     if (!query) {
       res.status(400).json({ error: 'Search query is required' });
       return;
     }
 
-    let products: any[] = await prisma.product.findMany({
+    let products = await prisma.product.findMany({
       where: {
+        company_id: companyId,
         OR: [
           { barcode: query },
           { sku: query },
-        ]
+        ],
       },
-      include: { category: true }
+      include: {
+        category: true,
+        product_stocks: {
+          where: { branch_id: branchId },
+        },
+      },
     });
 
     if (products.length === 0) {
       products = await prisma.product.findMany({
         where: {
+          company_id: companyId,
           OR: [
             { name: { contains: query, mode: 'insensitive' } },
             { barcode: { contains: query, mode: 'insensitive' } },
             { sku: { contains: query, mode: 'insensitive' } },
             { factory: { contains: query, mode: 'insensitive' } },
-          ]
+          ],
         },
-        include: { category: true },
+        include: {
+          category: true,
+          product_stocks: {
+            where: { branch_id: branchId },
+          },
+        },
         take: 10,
       });
     }
 
-    res.json(products);
+    const mappedProducts = products.map((p) => {
+      const ps = p.product_stocks[0];
+      return {
+        ...p,
+        stock_qty: ps ? ps.stock_qty : 0,
+        low_stock_threshold: ps ? ps.low_stock_threshold : 5,
+        product_stocks: undefined,
+      };
+    });
+
+    res.json(mappedProducts);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -139,6 +192,8 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const username = getUsername(req);
     const {
       name,
@@ -159,29 +214,56 @@ export const createProduct = async (req: Request, res: Response) => {
       return;
     }
 
-    const product = await prisma.product.create({
-      data: {
-        name,
-        sku: sku || null,
-        barcode: barcode || null,
-        category_id: category_id ? parseInt(category_id) : null,
-        factory: factory || null,
-        description: description || null,
-        cost_price: cost_price ? parseFloat(cost_price) : 0,
-        sell_price: sell_price ? parseFloat(sell_price) : 0,
-        stock_qty: stock_qty ? parseInt(stock_qty) : 0,
-        low_stock_threshold: low_stock_threshold ? parseInt(low_stock_threshold) : 5,
-        image_path: image_path || null,
-      },
+    // Wrap in transaction to initialize stocks for all branches of the company
+    const product = await prisma.$transaction(async (tx) => {
+      const prod = await tx.product.create({
+        data: {
+          company_id: companyId,
+          branch_id: branchId,
+          name,
+          sku: sku || null,
+          barcode: barcode || null,
+          category_id: category_id ? parseInt(category_id) : null,
+          factory: factory || null,
+          description: description || null,
+          cost_price: cost_price ? parseFloat(cost_price) : 0,
+          sell_price: sell_price ? parseFloat(sell_price) : 0,
+          stock_qty: stock_qty ? parseInt(stock_qty) : 0,
+          low_stock_threshold: low_stock_threshold ? parseInt(low_stock_threshold) : 5,
+          image_path: image_path || null,
+        },
+      });
+
+      // Get all branches of company
+      const branches = await tx.branch.findMany({
+        where: { company_id: companyId },
+      });
+
+      for (const b of branches) {
+        await tx.productStock.create({
+          data: {
+            company_id: companyId,
+            branch_id: b.id,
+            product_id: prod.id,
+            stock_qty: b.id === branchId ? (stock_qty ? parseInt(stock_qty) : 0) : 0,
+            low_stock_threshold: low_stock_threshold ? parseInt(low_stock_threshold) : 5,
+          },
+        });
+      }
+
+      return prod;
     });
 
-    await logUserActivity(username, 'CREATE_PRODUCT', {
+    await logUserActivity(companyId, username, 'CREATE_PRODUCT', {
       id: product.id,
       name: product.name,
       sku: product.sku,
     });
 
-    res.status(201).json(product);
+    res.status(201).json({
+      ...product,
+      stock_qty: stock_qty ? parseInt(stock_qty) : 0,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -189,10 +271,21 @@ export const createProduct = async (req: Request, res: Response) => {
 
 export const updateProduct = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid product ID' });
+      return;
+    }
+
+    // Ensure product belongs to company
+    const existing = await prisma.product.findFirst({
+      where: { id, company_id: companyId },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'Product not found' });
       return;
     }
 
@@ -221,25 +314,64 @@ export const updateProduct = async (req: Request, res: Response) => {
     if (req.body.sell_price !== undefined) {
       updateData.sell_price = parseFloat(req.body.sell_price);
     }
-    if (req.body.stock_qty !== undefined) {
-      updateData.stock_qty = parseInt(req.body.stock_qty);
-    }
     if (req.body.low_stock_threshold !== undefined) {
       updateData.low_stock_threshold = req.body.low_stock_threshold ? parseInt(req.body.low_stock_threshold) : null;
     }
 
-    const product = await prisma.product.update({
-      where: { id },
-      data: updateData,
+    // Run in transaction to update core product and branch-specific stock levels
+    const product = await prisma.$transaction(async (tx) => {
+      const prod = await tx.product.update({
+        where: { id },
+        data: updateData,
+      });
+
+      if (req.body.stock_qty !== undefined || req.body.low_stock_threshold !== undefined) {
+        await tx.productStock.upsert({
+          where: {
+            company_id_branch_id_product_id: {
+              company_id: companyId,
+              branch_id: branchId,
+              product_id: id,
+            },
+          },
+          update: {
+            stock_qty: req.body.stock_qty !== undefined ? parseInt(req.body.stock_qty) : undefined,
+            low_stock_threshold: req.body.low_stock_threshold !== undefined ? parseInt(req.body.low_stock_threshold) : undefined,
+          },
+          create: {
+            company_id: companyId,
+            branch_id: branchId,
+            product_id: id,
+            stock_qty: req.body.stock_qty !== undefined ? parseInt(req.body.stock_qty) : 0,
+            low_stock_threshold: req.body.low_stock_threshold !== undefined ? parseInt(req.body.low_stock_threshold) : 5,
+          },
+        });
+      }
+
+      return prod;
     });
 
-    await logUserActivity(username, 'UPDATE_PRODUCT', {
+    const activeStock = await prisma.productStock.findUnique({
+      where: {
+        company_id_branch_id_product_id: {
+          company_id: companyId,
+          branch_id: branchId,
+          product_id: id,
+        },
+      },
+    });
+
+    await logUserActivity(companyId, username, 'UPDATE_PRODUCT', {
       id: product.id,
       name: product.name,
       changes: req.body,
     });
 
-    res.json(product);
+    res.json({
+      ...product,
+      stock_qty: activeStock ? activeStock.stock_qty : 0,
+      low_stock_threshold: activeStock ? activeStock.low_stock_threshold : 5,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -247,6 +379,7 @@ export const updateProduct = async (req: Request, res: Response) => {
 
 export const deleteProduct = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
@@ -254,7 +387,9 @@ export const deleteProduct = async (req: Request, res: Response) => {
       return;
     }
 
-    const product = await prisma.product.findUnique({ where: { id } });
+    const product = await prisma.product.findFirst({
+      where: { id, company_id: companyId },
+    });
     if (!product) {
       res.status(404).json({ error: 'Product not found' });
       return;
@@ -264,7 +399,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
       where: { id },
     });
 
-    await logUserActivity(username, 'DELETE_PRODUCT', {
+    await logUserActivity(companyId, username, 'DELETE_PRODUCT', {
       id: product.id,
       name: product.name,
     });
@@ -277,6 +412,8 @@ export const deleteProduct = async (req: Request, res: Response) => {
 
 export const adjustStock = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     const { delta } = req.body;
@@ -291,23 +428,48 @@ export const adjustStock = async (req: Request, res: Response) => {
       return;
     }
 
-    const product = await prisma.product.update({
-      where: { id },
-      data: {
+    const product = await prisma.product.findFirst({
+      where: { id, company_id: companyId },
+    });
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    const updatedStock = await prisma.productStock.upsert({
+      where: {
+        company_id_branch_id_product_id: {
+          company_id: companyId,
+          branch_id: branchId,
+          product_id: id,
+        },
+      },
+      update: {
         stock_qty: {
           increment: parseInt(delta),
         },
       },
+      create: {
+        company_id: companyId,
+        branch_id: branchId,
+        product_id: id,
+        stock_qty: parseInt(delta),
+        low_stock_threshold: 5,
+      },
     });
 
-    await logUserActivity(username, 'ADJUST_STOCK', {
+    await logUserActivity(companyId, username, 'ADJUST_STOCK', {
       id: product.id,
       name: product.name,
       delta: parseInt(delta),
-      new_stock: product.stock_qty,
+      new_stock: updatedStock.stock_qty,
     });
 
-    res.json(product);
+    res.json({
+      ...product,
+      stock_qty: updatedStock.stock_qty,
+      low_stock_threshold: updatedStock.low_stock_threshold,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

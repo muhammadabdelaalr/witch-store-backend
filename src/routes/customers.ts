@@ -7,8 +7,15 @@ import {
   getCustomerTransactions,
   deleteCustomer,
 } from '../controllers/customers';
+import { authTokenMiddleware } from '../middleware/auth';
+import { tenantResolverMiddleware } from '../middleware/tenant';
+import { requireModule } from '../middleware/guards';
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
+router.use(requireModule('customers'));
 
 /**
  * @swagger

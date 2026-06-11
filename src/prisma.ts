@@ -1,4 +1,4 @@
-import { PrismaClient } from './generated/prisma/client';
+import { PrismaClient } from './generated/prisma';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
@@ -25,14 +25,18 @@ export function getUsername(req: { headers: Record<string, string | string[] | u
 
 // Helper functions for user logging
 export async function logUserActivity(
+  company_id: number | null,
   username: string | null,
   action: string,
   details?: any
 ) {
   if (!username) return;
   try {
-    const user = await prisma.user.findUnique({
-      where: { name: username },
+    const user = await prisma.user.findFirst({
+      where: {
+        company_id: company_id || 1,
+        name: username,
+      },
     });
     if (user) {
       const logs = JSON.parse(user.logs || '[]');

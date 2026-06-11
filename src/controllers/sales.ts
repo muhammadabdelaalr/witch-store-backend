@@ -3,6 +3,8 @@ import { prisma } from '../prisma';
 
 export const createSale = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const {
       customer_id,
       discount = 0,
@@ -31,7 +33,6 @@ export const createSale = async (req: Request, res: Response) => {
       return;
     }
 
-
     const amountPaidFloat = parseFloat(amount_paid);
     const discountFloat = parseFloat(discount);
     const taxFloat = parseFloat(tax);
@@ -55,21 +56,50 @@ export const createSale = async (req: Request, res: Response) => {
           throw new Error('Quantity must be greater than zero');
         }
 
-        const product = await tx.product.findUnique({
-          where: { id: productIdInt },
+        const product = await tx.product.findFirst({
+          where: { id: productIdInt, company_id: companyId },
         });
 
         if (!product) {
           throw new Error(`Product with ID ${productIdInt} not found`);
         }
 
-        if (product.stock_qty < qtyInt) {
+        // Check stock levels at branch level
+        const pStock = await tx.productStock.findUnique({
+          where: {
+            company_id_branch_id_product_id: {
+              company_id: companyId,
+              branch_id: branchId,
+              product_id: productIdInt,
+            },
+          },
+        });
+
+        const availableQty = pStock ? pStock.stock_qty : 0;
+
+        if (availableQty < qtyInt) {
           throw new Error(
-            `Insufficient stock for product "${product.name}". Requested: ${qtyInt}, Available: ${product.stock_qty}`
+            `الكمية المتاحة في المخزن غير كافية للمنتج "${product.name}". المطلوبة: ${qtyInt}، المتوفرة: ${availableQty}`
           );
         }
 
-        // 2. Decrement stock
+        // 2. Decrement stock from branch-level ProductStock
+        await tx.productStock.update({
+          where: {
+            company_id_branch_id_product_id: {
+              company_id: companyId,
+              branch_id: branchId,
+              product_id: productIdInt,
+            },
+          },
+          data: {
+            stock_qty: {
+              decrement: qtyInt,
+            },
+          },
+        });
+
+        // Also decrement from product's fallback stock_qty column for backwards compatibility
         await tx.product.update({
           where: { id: product.id },
           data: {
@@ -103,6 +133,8 @@ export const createSale = async (req: Request, res: Response) => {
       // 3. Create Sale record
       const newSale = await tx.sale.create({
         data: {
+          company_id: companyId,
+          branch_id: branchId,
           ...(customerIdInt ? { customer: { connect: { id: customerIdInt } } } : {}),
           customer_name: customer_name || null,
           total: grandTotal,
@@ -137,8 +169,8 @@ export const createSale = async (req: Request, res: Response) => {
           const amount = Math.abs(unpaid);
 
           // Get customer's current balance to calculate the remaining balance
-          const customer = await tx.customer.findUnique({
-            where: { id: customerIdInt },
+          const customer = await tx.customer.findFirst({
+            where: { id: customerIdInt, company_id: companyId },
           });
           const currentBalance = customer ? customer.balance : 0;
           const remainingBalance = currentBalance + unpaid;
@@ -148,6 +180,7 @@ export const createSale = async (req: Request, res: Response) => {
           // Create customer ledger transaction
           await tx.customerTransaction.create({
             data: {
+              company_id: companyId,
               customer_id: customerIdInt,
               type,
               amount,
@@ -169,8 +202,8 @@ export const createSale = async (req: Request, res: Response) => {
 
       // 6. User Activity Log inside user table
       if (seller_name) {
-        const user = await tx.user.findUnique({
-          where: { name: seller_name },
+        const user = await tx.user.findFirst({
+          where: { name: seller_name, company_id: companyId },
         });
         if (user) {
           const logs = JSON.parse(user.logs || '[]');
@@ -189,12 +222,12 @@ export const createSale = async (req: Request, res: Response) => {
       return newSale;
     }, {
       maxWait: 15000,
-      timeout: 30000
+      timeout: 30000,
     });
 
     // Retrieve the fully created sale with items
-    const fullSale = await prisma.sale.findUnique({
-      where: { id: sale.id },
+    const fullSale = await prisma.sale.findFirst({
+      where: { id: sale.id, company_id: companyId },
       include: {
         customer: true,
         items: {
@@ -213,12 +246,17 @@ export const createSale = async (req: Request, res: Response) => {
 
 export const getAllSales = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const { from, to, customerId, sale_type, invoiceId, page = 1, limit = 10 } = req.query;
     const pageInt = parseInt(page as string);
     const limitInt = parseInt(limit as string);
     const skip = (pageInt - 1) * limitInt;
 
-    const where: any = {};
+    const where: any = {
+      company_id: companyId,
+      branch_id: branchId,
+    };
 
     if (invoiceId) {
       where.id = parseInt(invoiceId as string);
@@ -257,8 +295,8 @@ export const getAllSales = async (req: Request, res: Response) => {
             },
           },
           refunds: {
-            select: { id: true, total: true }
-          }
+            select: { id: true, total: true },
+          },
         },
         orderBy: { created_at: 'desc' },
         skip,
@@ -288,14 +326,15 @@ export const getAllSales = async (req: Request, res: Response) => {
 
 export const getSaleById = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid sale ID' });
       return;
     }
 
-    const sale = await prisma.sale.findUnique({
-      where: { id },
+    const sale = await prisma.sale.findFirst({
+      where: { id, company_id: companyId },
       include: {
         customer: true,
         items: {
@@ -307,11 +346,11 @@ export const getSaleById = async (req: Request, res: Response) => {
           include: {
             items: {
               include: {
-                product: true
-              }
-            }
-          }
-        }
+                product: true,
+              },
+            },
+          },
+        },
       },
     });
 

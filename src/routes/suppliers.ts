@@ -12,8 +12,14 @@ import {
   getSupplierInvoices,
   getSupplierInvoiceHistory,
 } from '../controllers/supplierInvoices';
+import { authTokenMiddleware } from '../middleware/auth';
+import { tenantResolverMiddleware } from '../middleware/tenant';
+import { requireModule } from '../middleware/guards';
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
 
 /**
  * @swagger
@@ -55,8 +61,8 @@ const router = Router();
  *       200:
  *         description: Success
  */
-router.get('/', getAllSuppliers);
-router.post('/', createSupplier);
+router.get('/', requireModule('suppliers'), getAllSuppliers);
+router.post('/', requireModule('suppliers'), createSupplier);
 
 /**
  * @swagger
@@ -89,7 +95,7 @@ router.post('/', createSupplier);
  *         schema:
  *           type: string
  */
-router.put('/:id', updateSupplier);
+router.put('/:id', requireModule('suppliers'), updateSupplier);
 
 /**
  * @swagger
@@ -121,7 +127,7 @@ router.put('/:id', updateSupplier);
  *       200:
  *         description: Success
  */
-router.post('/transaction', addSupplierTransaction);
+router.post('/transaction', requireModule('suppliers'), addSupplierTransaction);
 
 /**
  * @swagger
@@ -139,11 +145,11 @@ router.post('/transaction', addSupplierTransaction);
  *         schema:
  *           type: string
  */
-router.get('/:id/transactions', getSupplierTransactions);
+router.get('/:id/transactions', requireModule('suppliers'), getSupplierTransactions);
 
-router.post('/invoices', createSupplierInvoice);
-router.put('/invoices/:id', updateSupplierInvoice);
-router.get('/invoices', getSupplierInvoices);
-router.get('/invoices/:id/history', getSupplierInvoiceHistory);
+router.post('/invoices', requireModule('supplier_invoices'), createSupplierInvoice);
+router.put('/invoices/:id', requireModule('supplier_invoices'), updateSupplierInvoice);
+router.get('/invoices', requireModule('supplier_invoices'), getSupplierInvoices);
+router.get('/invoices/:id/history', requireModule('supplier_invoices'), getSupplierInvoiceHistory);
 
 export default router;

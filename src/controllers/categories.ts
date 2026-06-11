@@ -3,7 +3,9 @@ import { prisma, logUserActivity, getUsername } from '../prisma';
 
 export const getAllCategories = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const categories = await prisma.category.findMany({
+      where: { company_id: companyId },
       orderBy: {
         name: 'asc',
       },
@@ -16,6 +18,7 @@ export const getAllCategories = async (req: Request, res: Response) => {
 
 export const createCategory = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const { name } = req.body;
     if (!name) {
@@ -23,9 +26,12 @@ export const createCategory = async (req: Request, res: Response) => {
       return;
     }
     const category = await prisma.category.create({
-      data: { name },
+      data: {
+        name,
+        company_id: companyId,
+      },
     });
-    await logUserActivity(username, 'CREATE_CATEGORY', {
+    await logUserActivity(companyId, username, 'CREATE_CATEGORY', {
       id: category.id,
       name: category.name,
     });

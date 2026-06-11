@@ -3,12 +3,15 @@ import { prisma, logUserActivity, getUsername } from '../prisma';
 
 export const getAllCustomers = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const search = req.query.search as string | undefined;
     const page = req.query.page ? parseInt(req.query.page as string) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = {
+      company_id: companyId,
+    };
 
     if (search) {
       where.OR = [
@@ -45,6 +48,7 @@ export const getAllCustomers = async (req: Request, res: Response) => {
 
 export const createCustomer = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const { name, phone, email, address, balance } = req.body;
 
@@ -55,6 +59,7 @@ export const createCustomer = async (req: Request, res: Response) => {
 
     const customer = await prisma.customer.create({
       data: {
+        company_id: companyId,
         name,
         phone: phone || null,
         email: email || null,
@@ -63,7 +68,7 @@ export const createCustomer = async (req: Request, res: Response) => {
       },
     });
 
-    await logUserActivity(username, 'CREATE_CUSTOMER', {
+    await logUserActivity(companyId, username, 'CREATE_CUSTOMER', {
       id: customer.id,
       name: customer.name,
     });
@@ -76,10 +81,20 @@ export const createCustomer = async (req: Request, res: Response) => {
 
 export const updateCustomer = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid customer ID' });
+      return;
+    }
+
+    // Ensure customer belongs to company
+    const existing = await prisma.customer.findFirst({
+      where: { id, company_id: companyId },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'Customer not found' });
       return;
     }
 
@@ -101,7 +116,7 @@ export const updateCustomer = async (req: Request, res: Response) => {
       data: updateData,
     });
 
-    await logUserActivity(username, 'UPDATE_CUSTOMER', {
+    await logUserActivity(companyId, username, 'UPDATE_CUSTOMER', {
       id: customer.id,
       name: customer.name,
       changes: req.body,
@@ -115,6 +130,7 @@ export const updateCustomer = async (req: Request, res: Response) => {
 
 export const addCustomerTransaction = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const { customer_id, type, amount, notes } = req.body;
 
@@ -132,9 +148,9 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
     const amountFloat = parseFloat(amount);
 
     const transaction = await prisma.$transaction(async (tx: any) => {
-      // 1. Verify customer exists
-      const customer = await tx.customer.findUnique({
-        where: { id: customerIdInt },
+      // 1. Verify customer exists and belongs to company
+      const customer = await tx.customer.findFirst({
+        where: { id: customerIdInt, company_id: companyId },
       });
       if (!customer) {
         throw new Error('Customer not found');
@@ -148,6 +164,7 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
 
       const newTx = await tx.customerTransaction.create({
         data: {
+          company_id: companyId,
           customer_id: customerIdInt,
           type,
           amount: amountFloat,
@@ -168,7 +185,7 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
       return newTx;
     });
 
-    await logUserActivity(username, 'CUSTOMER_TRANSACTION', {
+    await logUserActivity(companyId, username, 'CUSTOMER_TRANSACTION', {
       customer_id: customerIdInt,
       type,
       amount: amountFloat,
@@ -182,14 +199,24 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
 
 export const getCustomerTransactions = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const customerId = parseInt(req.params.id as string);
     if (isNaN(customerId)) {
       res.status(400).json({ error: 'Invalid customer ID' });
       return;
     }
 
+    // Verify customer belongs to company
+    const customer = await prisma.customer.findFirst({
+      where: { id: customerId, company_id: companyId },
+    });
+    if (!customer) {
+      res.status(404).json({ error: 'Customer not found' });
+      return;
+    }
+
     const transactions = await prisma.customerTransaction.findMany({
-      where: { customer_id: customerId },
+      where: { customer_id: customerId, company_id: companyId },
       orderBy: { created_at: 'desc' },
     });
 
@@ -201,6 +228,7 @@ export const getCustomerTransactions = async (req: Request, res: Response) => {
 
 export const deleteCustomer = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
@@ -208,15 +236,24 @@ export const deleteCustomer = async (req: Request, res: Response) => {
       return;
     }
 
+    // Ensure customer belongs to company
+    const customer = await prisma.customer.findFirst({
+      where: { id, company_id: companyId },
+    });
+    if (!customer) {
+      res.status(404).json({ error: 'Customer not found' });
+      return;
+    }
+
     await prisma.$transaction(async (tx: any) => {
       // 1. Delete all transactions of the customer
       await tx.customerTransaction.deleteMany({
-        where: { customer_id: id },
+        where: { customer_id: id, company_id: companyId },
       });
 
       // 2. Disconnect customer from all sales records
       await tx.sale.updateMany({
-        where: { customer_id: id },
+        where: { customer_id: id, company_id: companyId },
         data: { customer_id: null },
       });
 
@@ -226,7 +263,7 @@ export const deleteCustomer = async (req: Request, res: Response) => {
       });
     });
 
-    await logUserActivity(username, 'DELETE_CUSTOMER', { id });
+    await logUserActivity(companyId, username, 'DELETE_CUSTOMER', { id });
 
     res.json({ message: 'Customer deleted successfully' });
   } catch (error: any) {

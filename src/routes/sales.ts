@@ -5,8 +5,14 @@ import {
   getSaleById,
 } from '../controllers/sales';
 import { createRefund } from '../controllers/refunds';
+import { authTokenMiddleware } from '../middleware/auth';
+import { tenantResolverMiddleware } from '../middleware/tenant';
+import { requireModule } from '../middleware/guards';
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
 
 /**
  * @swagger
@@ -75,8 +81,8 @@ const router = Router();
  *       200:
  *         description: Success
  */
-router.post('/', createSale);
-router.get('/', getAllSales);
+router.post('/', requireModule('pos'), createSale);
+router.get('/', requireModule('pos'), getAllSales);
 
 /**
  * @swagger
@@ -94,7 +100,7 @@ router.get('/', getAllSales);
  *         schema:
  *           type: string
  */
-router.get('/:id', getSaleById);
+router.get('/:id', requireModule('pos'), getSaleById);
 
 /**
  * @swagger
@@ -132,6 +138,6 @@ router.get('/:id', getSaleById);
  *       201:
  *         description: Success
  */
-router.post('/:id/refund', createRefund);
+router.post('/:id/refund', requireModule('refunds'), createRefund);
 
 export default router;

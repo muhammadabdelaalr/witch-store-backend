@@ -3,12 +3,17 @@ import { prisma, logUserActivity, getUsername } from '../prisma';
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const search = req.query.search as string | undefined;
     const page = req.query.page ? parseInt(req.query.page as string) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = {
+      company_id: companyId,
+      branch_id: branchId,
+    };
 
     if (search) {
       where.OR = [
@@ -43,6 +48,8 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
 export const createUser = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const username = getUsername(req);
     const { name, phone } = req.body;
 
@@ -53,13 +60,15 @@ export const createUser = async (req: Request, res: Response) => {
 
     const user = await prisma.user.create({
       data: {
+        company_id: companyId,
+        branch_id: branchId,
         name,
         phone,
         logs: '[]',
       },
     });
 
-    await logUserActivity(username, 'CREATE_USER', { name: user.name });
+    await logUserActivity(companyId, username, 'CREATE_USER', { name: user.name });
 
     res.status(201).json(user);
   } catch (error: any) {
@@ -69,10 +78,20 @@ export const createUser = async (req: Request, res: Response) => {
 
 export const updateUser = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+
+    // Ensure user belongs to company
+    const existing = await prisma.user.findFirst({
+      where: { id, company_id: companyId },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'User not found' });
       return;
     }
 
@@ -86,7 +105,7 @@ export const updateUser = async (req: Request, res: Response) => {
       data: updateData,
     });
 
-    await logUserActivity(username, 'UPDATE_USER', { id: user.id, name: user.name, changes: req.body });
+    await logUserActivity(companyId, username, 'UPDATE_USER', { id: user.id, name: user.name, changes: req.body });
 
     res.json(user);
   } catch (error: any) {
@@ -96,6 +115,7 @@ export const updateUser = async (req: Request, res: Response) => {
 
 export const deleteUser = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
@@ -103,8 +123,8 @@ export const deleteUser = async (req: Request, res: Response) => {
       return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id },
+    const user = await prisma.user.findFirst({
+      where: { id, company_id: companyId },
     });
 
     if (!user) {
@@ -116,7 +136,7 @@ export const deleteUser = async (req: Request, res: Response) => {
       where: { id },
     });
 
-    await logUserActivity(username, 'DELETE_USER', { id, name: user.name });
+    await logUserActivity(companyId, username, 'DELETE_USER', { id, name: user.name });
 
     res.status(204).send();
   } catch (error: any) {
@@ -126,6 +146,7 @@ export const deleteUser = async (req: Request, res: Response) => {
 
 export const loginUser = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -135,6 +156,7 @@ export const loginUser = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findFirst({
       where: {
+        company_id: companyId,
         name: username,
         phone: password,
       },
@@ -166,6 +188,7 @@ export const loginUser = async (req: Request, res: Response) => {
 
 export const syncActiveUser = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const { id, name } = req.body;
 
     if (!id || !name) {
@@ -175,6 +198,7 @@ export const syncActiveUser = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findFirst({
       where: {
+        company_id: companyId,
         id: parseInt(id),
         name,
       },
@@ -193,10 +217,11 @@ export const syncActiveUser = async (req: Request, res: Response) => {
 
 export const logoutUser = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = req.headers['x-user-name'] as string;
     if (username) {
-      const user = await prisma.user.findUnique({
-        where: { name: username },
+      const user = await prisma.user.findFirst({
+        where: { name: username, company_id: companyId },
       });
       if (user) {
         const logs = JSON.parse(user.logs || '[]');
