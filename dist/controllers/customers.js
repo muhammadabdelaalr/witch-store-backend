@@ -4,11 +4,14 @@ exports.deleteCustomer = exports.getCustomerTransactions = exports.addCustomerTr
 const prisma_1 = require("../prisma");
 const getAllCustomers = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const search = req.query.search;
         const page = req.query.page ? parseInt(req.query.page) : 1;
         const limit = req.query.limit ? parseInt(req.query.limit) : 10;
         const skip = (page - 1) * limit;
-        const where = {};
+        const where = {
+            company_id: companyId,
+        };
         if (search) {
             where.OR = [
                 { name: { contains: search, mode: 'insensitive' } },
@@ -42,6 +45,7 @@ const getAllCustomers = async (req, res) => {
 exports.getAllCustomers = getAllCustomers;
 const createCustomer = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const username = (0, prisma_1.getUsername)(req);
         const { name, phone, email, address, balance } = req.body;
         if (!name || !phone) {
@@ -50,6 +54,7 @@ const createCustomer = async (req, res) => {
         }
         const customer = await prisma_1.prisma.customer.create({
             data: {
+                company_id: companyId,
                 name,
                 phone: phone || null,
                 email: email || null,
@@ -57,7 +62,7 @@ const createCustomer = async (req, res) => {
                 balance: balance ? parseFloat(balance) : 0,
             },
         });
-        await (0, prisma_1.logUserActivity)(username, 'CREATE_CUSTOMER', {
+        await (0, prisma_1.logUserActivity)(companyId, username, 'CREATE_CUSTOMER', {
             id: customer.id,
             name: customer.name,
         });
@@ -70,10 +75,19 @@ const createCustomer = async (req, res) => {
 exports.createCustomer = createCustomer;
 const updateCustomer = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const username = (0, prisma_1.getUsername)(req);
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
             res.status(400).json({ error: 'Invalid customer ID' });
+            return;
+        }
+        // Ensure customer belongs to company
+        const existing = await prisma_1.prisma.customer.findFirst({
+            where: { id, company_id: companyId },
+        });
+        if (!existing) {
+            res.status(404).json({ error: 'Customer not found' });
             return;
         }
         const updateData = {};
@@ -90,7 +104,7 @@ const updateCustomer = async (req, res) => {
             where: { id },
             data: updateData,
         });
-        await (0, prisma_1.logUserActivity)(username, 'UPDATE_CUSTOMER', {
+        await (0, prisma_1.logUserActivity)(companyId, username, 'UPDATE_CUSTOMER', {
             id: customer.id,
             name: customer.name,
             changes: req.body,
@@ -104,6 +118,7 @@ const updateCustomer = async (req, res) => {
 exports.updateCustomer = updateCustomer;
 const addCustomerTransaction = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const username = (0, prisma_1.getUsername)(req);
         const { customer_id, type, amount, notes } = req.body;
         if (!customer_id || !type || amount === undefined || !notes || !notes.trim()) {
@@ -117,9 +132,9 @@ const addCustomerTransaction = async (req, res) => {
         const customerIdInt = parseInt(customer_id);
         const amountFloat = parseFloat(amount);
         const transaction = await prisma_1.prisma.$transaction(async (tx) => {
-            // 1. Verify customer exists
-            const customer = await tx.customer.findUnique({
-                where: { id: customerIdInt },
+            // 1. Verify customer exists and belongs to company
+            const customer = await tx.customer.findFirst({
+                where: { id: customerIdInt, company_id: companyId },
             });
             if (!customer) {
                 throw new Error('Customer not found');
@@ -131,6 +146,7 @@ const addCustomerTransaction = async (req, res) => {
             const finalNotes = notes ? `${notes} | ${internalNote}` : internalNote;
             const newTx = await tx.customerTransaction.create({
                 data: {
+                    company_id: companyId,
                     customer_id: customerIdInt,
                     type,
                     amount: amountFloat,
@@ -148,7 +164,7 @@ const addCustomerTransaction = async (req, res) => {
             });
             return newTx;
         });
-        await (0, prisma_1.logUserActivity)(username, 'CUSTOMER_TRANSACTION', {
+        await (0, prisma_1.logUserActivity)(companyId, username, 'CUSTOMER_TRANSACTION', {
             customer_id: customerIdInt,
             type,
             amount: amountFloat,
@@ -162,13 +178,22 @@ const addCustomerTransaction = async (req, res) => {
 exports.addCustomerTransaction = addCustomerTransaction;
 const getCustomerTransactions = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const customerId = parseInt(req.params.id);
         if (isNaN(customerId)) {
             res.status(400).json({ error: 'Invalid customer ID' });
             return;
         }
+        // Verify customer belongs to company
+        const customer = await prisma_1.prisma.customer.findFirst({
+            where: { id: customerId, company_id: companyId },
+        });
+        if (!customer) {
+            res.status(404).json({ error: 'Customer not found' });
+            return;
+        }
         const transactions = await prisma_1.prisma.customerTransaction.findMany({
-            where: { customer_id: customerId },
+            where: { customer_id: customerId, company_id: companyId },
             orderBy: { created_at: 'desc' },
         });
         res.json(transactions);
@@ -180,20 +205,29 @@ const getCustomerTransactions = async (req, res) => {
 exports.getCustomerTransactions = getCustomerTransactions;
 const deleteCustomer = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const username = (0, prisma_1.getUsername)(req);
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
             res.status(400).json({ error: 'Invalid customer ID' });
             return;
         }
+        // Ensure customer belongs to company
+        const customer = await prisma_1.prisma.customer.findFirst({
+            where: { id, company_id: companyId },
+        });
+        if (!customer) {
+            res.status(404).json({ error: 'Customer not found' });
+            return;
+        }
         await prisma_1.prisma.$transaction(async (tx) => {
             // 1. Delete all transactions of the customer
             await tx.customerTransaction.deleteMany({
-                where: { customer_id: id },
+                where: { customer_id: id, company_id: companyId },
             });
             // 2. Disconnect customer from all sales records
             await tx.sale.updateMany({
-                where: { customer_id: id },
+                where: { customer_id: id, company_id: companyId },
                 data: { customer_id: null },
             });
             // 3. Delete customer
@@ -201,7 +235,7 @@ const deleteCustomer = async (req, res) => {
                 where: { id },
             });
         });
-        await (0, prisma_1.logUserActivity)(username, 'DELETE_CUSTOMER', { id });
+        await (0, prisma_1.logUserActivity)(companyId, username, 'DELETE_CUSTOMER', { id });
         res.json({ message: 'Customer deleted successfully' });
     }
     catch (error) {

@@ -2,7 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const products_1 = require("../controllers/products");
+const auth_1 = require("../middleware/auth");
+const tenant_1 = require("../middleware/tenant");
+const guards_1 = require("../middleware/guards");
 const router = (0, express_1.Router)();
+router.use(auth_1.authTokenMiddleware);
+router.use(tenant_1.tenantResolverMiddleware);
+router.use((0, guards_1.requireModule)('products'));
 /**
  * @swagger
  * tags:

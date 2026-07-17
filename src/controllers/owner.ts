@@ -96,24 +96,116 @@ export const ownerLogin = async (req: Request, res: Response) => {
 };
 
 // ==========================================
+// 1.5 DASHBOARD & LOOKUPS
+// ==========================================
+
+export const getDashboardStats = async (req: Request, res: Response) => {
+  try {
+    const [companies_count, active_licenses_count, expired_licenses_count, active_devices_count] = await Promise.all([
+      prisma.company.count(),
+      prisma.license.count({ where: { status: 'active' } }),
+      prisma.license.count({ where: { status: 'expired' } }),
+      prisma.deviceActivation.count({ where: { status: 'active' } }),
+    ]);
+
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const paymentsThisMonthResult = await prisma.payment.aggregate({
+      _sum: { amount: true },
+      where: { created_at: { gte: firstDayOfMonth }, status: 'paid' },
+    });
+    const payments_this_month = paymentsThisMonthResult._sum.amount || 0;
+
+    const next30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const licenses_expiring_soon = await prisma.license.findMany({
+      where: {
+        status: 'active',
+        expires_at: { not: null, lte: next30Days, gte: now }
+      },
+      include: { company: true },
+      take: 5
+    });
+
+    res.json({
+      companies_count,
+      active_licenses_count,
+      expired_licenses_count,
+      active_devices_count,
+      payments_this_month,
+      licenses_expiring_soon,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
+  }
+};
+
+export const getLookups = async (req: Request, res: Response) => {
+  try {
+    const [companies, plans, modules, licenses] = await Promise.all([
+      prisma.company.findMany({ select: { id: true, name: true, status: true } }),
+      prisma.plan.findMany({ select: { id: true, name: true, is_active: true } }),
+      prisma.module.findMany({ select: { id: true, key: true, name: true, is_active: true } }),
+      prisma.license.findMany({ 
+        select: { 
+          id: true, 
+          company_id: true, 
+          plan_id: true,
+          status: true,
+          plan: { select: { name: true, price_monthly: true, price_yearly: true, is_lifetime: true } },
+          company: { select: { name: true } }
+        } 
+      })
+    ]);
+    res.json({ companies, plans, modules, licenses });
+  } catch (error: any) {
+    res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
+  }
+};
+
+// ==========================================
 // 2. COMPANIES MANAGEMENT
 // ==========================================
 
 export const getCompanies = async (req: Request, res: Response) => {
   try {
-    const companies = await prisma.company.findMany({
-      include: {
-        _count: {
-          select: {
-            branches: true,
-            licenses: true,
-            devices: true,
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      prisma.company.findMany({
+        include: {
+          _count: {
+            select: {
+              branches: true,
+              licenses: true,
+              devices: true,
+            },
+          },
+          users: {
+            where: { isAdmin: true },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              isAdmin: true,
+              password: true,
+            },
           },
         },
-      },
-      orderBy: { created_at: 'desc' },
+        orderBy: { created_at: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.company.count(),
+    ]);
+    
+    res.json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
-    res.json(companies);
   } catch (error: any) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
@@ -121,22 +213,53 @@ export const getCompanies = async (req: Request, res: Response) => {
 
 export const createCompany = async (req: Request, res: Response) => {
   try {
-    const { name, legal_name, phone, email, address } = req.body;
-    if (!name) {
-      res.status(400).json({ error: 'BAD_REQUEST', message: 'اسم الشركة مطلوب.' });
+    const { name, legal_name, phone, email, password, address, app_name } = req.body;
+    if (!name && !phone) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'يجب إدخال اسم الشركة أو رقم الهاتف على الأقل.' });
+      return;
+    }
+    if (!address) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'العنوان مطلوب.' });
+      return;
+    }
+    if (!email) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'البريد الإلكتروني للمشرف مطلوب.' });
+      return;
+    }
+    if (!password) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'كلمة مرور المشرف مطلوبة.' });
       return;
     }
 
-    // Create Company and default Branch inside a transaction
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'البريد الإلكتروني للمشرف غير صالح.' });
+      return;
+    }
+
+    const singleCompanyMode = process.env.OWNER_SINGLE_COMPANY_MODE === 'true';
+    if (singleCompanyMode) {
+      const existingCompaniesCount = await prisma.company.count();
+      if (existingCompaniesCount >= 1) {
+        res.status(400).json({
+          error: 'SINGLE_COMPANY_LIMIT_REACHED',
+          message: 'النظام مخصص لشركة واحدة فقط.'
+        });
+        return;
+      }
+    }
+
+    // Create Company, default Branch, and Admin User inside a transaction
     const result = await prisma.$transaction(async (tx) => {
       const newCompany = await tx.company.create({
         data: {
-          name,
-          legal_name,
-          phone,
-          email,
-          address,
+          name: name ? name.trim() : phone.trim(),
+          legal_name: legal_name ? legal_name.trim() : null,
+          phone: phone ? phone.trim() : null,
+          email: email.trim(),
+          address: address.trim(),
           status: 'active',
+          app_name: app_name ? app_name.trim() : null,
         },
       });
 
@@ -148,7 +271,20 @@ export const createCompany = async (req: Request, res: Response) => {
         },
       });
 
-      return { company: newCompany, branch: defaultBranch };
+      const adminUser = await tx.user.create({
+        data: {
+          company_id: newCompany.id,
+          branch_id: defaultBranch.id,
+          name: email.trim(),
+          email: email.trim(),
+          password: password,
+          phone: phone ? phone.trim() : '0000000000',
+          isAdmin: true,
+          logs: '[]',
+        },
+      });
+
+      return { company: newCompany, branch: defaultBranch, adminUser };
     });
 
     if (req.ownerAdmin) {
@@ -157,7 +293,7 @@ export const createCompany = async (req: Request, res: Response) => {
         'CREATE_COMPANY',
         'Company',
         result.company.id,
-        `إنشاء شركة جديدة: ${name} مع الفرع الرئيسي`
+        `إنشاء شركة جديدة: ${name || phone} مع الفرع الرئيسي والمشرف`
       );
     }
 
@@ -170,7 +306,7 @@ export const createCompany = async (req: Request, res: Response) => {
 export const updateCompany = async (req: Request, res: Response) => {
   try {
     const { id } = req.params as { id: string };
-    const { name, legal_name, phone, email, address, status } = req.body;
+    const { name, legal_name, phone, email, address, status, app_name } = req.body;
 
     const companyId = parseInt(id, 10);
     if (isNaN(companyId)) {
@@ -178,10 +314,55 @@ export const updateCompany = async (req: Request, res: Response) => {
       return;
     }
 
+    const oldCompany = await prisma.company.findUnique({ where: { id: companyId } });
+    if (!oldCompany) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'الشركة غير موجودة.' });
+      return;
+    }
+
     const updated = await prisma.company.update({
       where: { id: companyId },
-      data: { name, legal_name, phone, email, address, status },
+      data: { 
+        name: name || (phone ? phone : undefined), 
+        legal_name, 
+        phone, 
+        email, 
+        address, 
+        status,
+        app_name: app_name !== undefined ? (app_name ? app_name.trim() : null) : undefined
+      },
     });
+
+    if (email && oldCompany.email !== email) {
+      // Find the admin user with the old email and update to the new email
+      const adminUser = await prisma.user.findFirst({
+        where: {
+          company_id: companyId,
+          name: oldCompany.email || 'Administrator'
+        }
+      });
+
+      if (adminUser) {
+        await prisma.user.update({
+          where: { id: adminUser.id },
+          data: { name: email, email: email }
+        });
+      } else {
+        // Fallback: look for Administrator or admin
+        const fallbackAdmin = await prisma.user.findFirst({
+          where: {
+            company_id: companyId,
+            name: { in: ['admin', 'Administrator'] }
+          }
+        });
+        if (fallbackAdmin) {
+          await prisma.user.update({
+            where: { id: fallbackAdmin.id },
+            data: { name: email, email: email }
+          });
+        }
+      }
+    }
 
     if (req.ownerAdmin) {
       await logOwnerAction(
@@ -205,14 +386,27 @@ export const updateCompany = async (req: Request, res: Response) => {
 
 export const getPlans = async (req: Request, res: Response) => {
   try {
-    const plans = await prisma.plan.findMany({
-      include: {
-        plan_modules: { include: { module: true } },
-        plan_features: { include: { feature: true } },
-      },
-      orderBy: { created_at: 'desc' },
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      prisma.plan.findMany({
+        include: {
+          plan_modules: { include: { module: true } },
+          plan_features: { include: { feature: true } },
+        },
+        orderBy: { created_at: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.plan.count(),
+    ]);
+
+    res.json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
-    res.json(plans);
   } catch (error: any) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
@@ -375,17 +569,39 @@ export const getFeatures = async (req: Request, res: Response) => {
 
 export const getLicenses = async (req: Request, res: Response) => {
   try {
-    const licenses = await prisma.license.findMany({
-      include: {
-        company: true,
-        plan: true,
-        devices: true,
-        license_modules: { include: { module: true } },
-        license_features: { include: { feature: true } },
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    // Auto-expire past licenses before fetching
+    await prisma.license.updateMany({
+      where: {
+        status: 'active',
+        expires_at: { lt: new Date() }
       },
-      orderBy: { created_at: 'desc' },
+      data: { status: 'expired' }
     });
-    res.json(licenses);
+
+    const [data, total] = await Promise.all([
+      prisma.license.findMany({
+        include: {
+          company: true,
+          plan: true,
+          devices: true,
+          license_modules: { include: { module: true } },
+          license_features: { include: { feature: true } },
+        },
+        orderBy: { created_at: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.license.count(),
+    ]);
+
+    res.json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
   } catch (error: any) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
@@ -741,14 +957,27 @@ export const convertLicenseToLifetime = async (req: Request, res: Response) => {
 
 export const getDevices = async (req: Request, res: Response) => {
   try {
-    const devices = await prisma.deviceActivation.findMany({
-      include: {
-        company: true,
-        license: true,
-      },
-      orderBy: { activated_at: 'desc' },
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      prisma.deviceActivation.findMany({
+        include: {
+          company: true,
+          license: true,
+        },
+        orderBy: { activated_at: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.deviceActivation.count(),
+    ]);
+
+    res.json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
-    res.json(devices);
   } catch (error: any) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
@@ -820,14 +1049,27 @@ export const unblockDevice = async (req: Request, res: Response) => {
 
 export const getPayments = async (req: Request, res: Response) => {
   try {
-    const payments = await prisma.payment.findMany({
-      include: {
-        company: true,
-        subscription: { include: { plan: true } },
-      },
-      orderBy: { created_at: 'desc' },
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      prisma.payment.findMany({
+        include: {
+          company: true,
+          subscription: { include: { plan: true } },
+        },
+        orderBy: { created_at: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.payment.count(),
+    ]);
+
+    res.json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
-    res.json(payments);
   } catch (error: any) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
@@ -943,12 +1185,128 @@ export const createPayment = async (req: Request, res: Response) => {
 
 export const getOwnerAuditLogs = async (req: Request, res: Response) => {
   try {
-    const logs = await prisma.ownerAuditLog.findMany({
-      include: { owner_user: { select: { id: true, name: true, email: true, role: true } } },
-      orderBy: { created_at: 'desc' },
-      take: 100, // safety limit
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    let filter: any = {};
+    if (req.query.entity_type) filter.entity_type = req.query.entity_type as string;
+    if (req.query.owner_user_id) filter.owner_user_id = parseInt(req.query.owner_user_id as string);
+    if (req.query.from || req.query.to) {
+      filter.created_at = {};
+      if (req.query.from) filter.created_at.gte = new Date(req.query.from as string);
+      if (req.query.to) filter.created_at.lte = new Date(req.query.to as string);
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.ownerAuditLog.findMany({
+        include: { owner_user: { select: { id: true, name: true, email: true, role: true } } },
+        orderBy: { created_at: 'desc' },
+        where: filter,
+        skip,
+        take: limit,
+      }),
+      prisma.ownerAuditLog.count({ where: filter }),
+    ]);
+
+    res.json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
-    res.json(logs);
+  } catch (error: any) {
+    res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
+  }
+};
+
+// ==========================================
+// 9. DELETIONS & STATUS UPDATES
+// ==========================================
+
+export const updateCompanyStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { status } = req.body;
+    const companyId = parseInt(id, 10);
+    
+    if (isNaN(companyId)) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'معرف الشركة غير صالح.' });
+      return;
+    }
+
+    if (status !== 'active' && status !== 'suspended') {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'حالة غير صالحة.' });
+      return;
+    }
+
+    const singleCompanyMode = process.env.OWNER_SINGLE_COMPANY_MODE === 'true';
+    if (singleCompanyMode && status === 'suspended') {
+      const count = await prisma.company.count({ where: { status: 'active' } });
+      if (count <= 1) {
+        res.status(400).json({
+          error: 'CANNOT_SUSPEND_LAST_COMPANY',
+          message: 'لا يمكن إيقاف الشركة الوحيدة النشطة في النظام.'
+        });
+        return;
+      }
+    }
+
+    const updated = await prisma.company.update({
+      where: { id: companyId },
+      data: { status },
+    });
+
+    if (req.ownerAdmin) {
+      await logOwnerAction(
+        req.ownerAdmin.id,
+        'UPDATE_COMPANY_STATUS',
+        'Company',
+        companyId,
+        `تغيير حالة الشركة إلى: ${status}`
+      );
+    }
+
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
+  }
+};
+
+export const deleteCompany = async (req: Request, res: Response) => {
+  // Converted to safe soft-delete behavior per requirements
+  res.status(400).json({ 
+    error: 'HARD_DELETE_DISABLED', 
+    message: 'تم إيقاف الحذف النهائي للشركات حفاظاً على سلامة البيانات. يرجى استخدام الإيقاف المؤقت (Suspension) بدلاً من ذلك.' 
+  });
+};
+
+export const deletePlan = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+    const planId = parseInt(id, 10);
+    if (isNaN(planId)) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'معرف الباقة غير صالح.' });
+      return;
+    }
+
+    const plan = await prisma.plan.findUnique({ where: { id: planId } });
+    if (!plan) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'الباقة غير موجودة.' });
+      return;
+    }
+
+    await prisma.plan.delete({ where: { id: planId } });
+
+    if (req.ownerAdmin) {
+      await logOwnerAction(
+        req.ownerAdmin.id,
+        'DELETE_PLAN',
+        'Plan',
+        planId,
+        `حذف الباقة: ${plan.name}`
+      );
+    }
+
+    res.json({ message: 'تم حذف الباقة بنجاح.' });
   } catch (error: any) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
   }

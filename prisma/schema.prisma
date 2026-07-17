@@ -21,6 +21,7 @@ model Company {
   status      String   @default("active") // active | suspended | expired
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
+  app_name    String?
 
   branches               Branch[]
   licenses               License[]
@@ -544,15 +545,18 @@ model SupplierTransaction {
 }
 
 model User {
-  id         Int      @id @default(autoincrement())
-  company_id Int
-  company    Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
-  branch_id  Int?
-  branch     Branch?  @relation(fields: [branch_id], references: [id], onDelete: SetNull)
-  name       String
-  phone      String
-  logs       String   @default("[]") // JSON string storing activity logs
-  created_at DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  company_id       Int
+  company          Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id        Int?
+  branch           Branch?  @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  name             String
+  email            String?
+  password         String   @default("admin")
+  phone            String
+  isAdmin          Boolean  @default(false)
+  logs             String   @default("[]") // JSON string storing activity logs
+  registrationDate DateTime @default(now())
 
   @@unique([company_id, name])
   @@map("users")

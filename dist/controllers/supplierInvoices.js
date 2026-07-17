@@ -4,6 +4,8 @@ exports.getSupplierInvoiceHistory = exports.getSupplierInvoices = exports.update
 const prisma_1 = require("../prisma");
 const createSupplierInvoice = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
+        const branchId = req.tenant.branch_id;
         const username = (0, prisma_1.getUsername)(req);
         const { supplier_id, total, amount_paid, notes, invoice_date, items, seller_name } = req.body;
         if (!supplier_id || total === undefined || amount_paid === undefined || !notes || !invoice_date || !items || !Array.isArray(items) || items.length === 0) {
@@ -24,13 +26,17 @@ const createSupplierInvoice = async (req, res) => {
         }
         const invoice = await prisma_1.prisma.$transaction(async (tx) => {
             // 1. Verify supplier
-            const supplier = await tx.supplier.findUnique({ where: { id: supplierIdInt } });
+            const supplier = await tx.supplier.findFirst({
+                where: { id: supplierIdInt, company_id: companyId },
+            });
             if (!supplier) {
                 throw new Error('Supplier not found');
             }
             // 2. Create invoice
             const newInvoice = await tx.supplierInvoice.create({
                 data: {
+                    company_id: companyId,
+                    branch_id: branchId,
                     supplier_id: supplierIdInt,
                     total: totalFloat,
                     amount_paid: amountPaidFloat,
@@ -54,15 +60,37 @@ const createSupplierInvoice = async (req, res) => {
                 const prodId = parseInt(item.product_id);
                 const qtyInt = parseInt(item.qty);
                 const unitCostFloat = parseFloat(item.unit_cost);
-                const product = await tx.product.findUnique({ where: { id: prodId } });
+                const product = await tx.product.findFirst({
+                    where: { id: prodId, company_id: companyId },
+                });
                 if (!product) {
                     throw new Error(`Product with ID ${prodId} not found`);
                 }
+                // Update cost price on product level
                 await tx.product.update({
                     where: { id: prodId },
                     data: {
-                        stock_qty: { increment: qtyInt },
                         cost_price: unitCostFloat,
+                    },
+                });
+                // Adjust stock at branch level
+                await tx.productStock.upsert({
+                    where: {
+                        company_id_branch_id_product_id: {
+                            company_id: companyId,
+                            branch_id: branchId,
+                            product_id: prodId,
+                        },
+                    },
+                    update: {
+                        stock_qty: { increment: qtyInt },
+                    },
+                    create: {
+                        company_id: companyId,
+                        branch_id: branchId,
+                        product_id: prodId,
+                        stock_qty: qtyInt,
+                        low_stock_threshold: 5,
                     },
                 });
             }
@@ -70,6 +98,7 @@ const createSupplierInvoice = async (req, res) => {
             // Transaction 1: Purchase (full amount)
             await tx.supplierTransaction.create({
                 data: {
+                    company_id: companyId,
                     supplier_id: supplierIdInt,
                     type: 'purchase',
                     amount: totalFloat,
@@ -85,6 +114,7 @@ const createSupplierInvoice = async (req, res) => {
             if (amountPaidFloat > 0) {
                 await tx.supplierTransaction.create({
                     data: {
+                        company_id: companyId,
                         supplier_id: supplierIdInt,
                         type: 'payment',
                         amount: amountPaidFloat,
@@ -109,6 +139,7 @@ const createSupplierInvoice = async (req, res) => {
                 items.map((i) => `المنتج #${i.product_id} (كمية: ${i.qty}، تكلفة: ${i.unit_cost})`).join(', ');
             await tx.supplierInvoiceHistory.create({
                 data: {
+                    company_id: companyId,
                     invoice_id: newInvoice.id,
                     seller_name,
                     action: 'create',
@@ -121,7 +152,7 @@ const createSupplierInvoice = async (req, res) => {
             timeout: 30000,
             maxWait: 15000,
         });
-        await (0, prisma_1.logUserActivity)(username, 'CREATE_SUPPLIER_INVOICE', {
+        await (0, prisma_1.logUserActivity)(companyId, username, 'CREATE_SUPPLIER_INVOICE', {
             id: invoice.id,
             supplier_id: supplierIdInt,
             total: totalFloat,
@@ -135,6 +166,8 @@ const createSupplierInvoice = async (req, res) => {
 exports.createSupplierInvoice = createSupplierInvoice;
 const updateSupplierInvoice = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
+        const branchId = req.tenant.branch_id;
         const username = (0, prisma_1.getUsername)(req);
         const id = parseInt(req.params.id);
         const { total, amount_paid, notes, invoice_date, items, seller_name, is_refund } = req.body;
@@ -159,23 +192,30 @@ const updateSupplierInvoice = async (req, res) => {
         }
         const updatedInvoice = await prisma_1.prisma.$transaction(async (tx) => {
             // 1. Fetch old invoice
-            const oldInvoice = await tx.supplierInvoice.findUnique({
-                where: { id },
+            const oldInvoice = await tx.supplierInvoice.findFirst({
+                where: { id, company_id: companyId },
                 include: { items: true },
             });
             if (!oldInvoice) {
                 throw new Error('Invoice not found');
             }
-            // 2. Revert old stock adjustments
+            const invoiceBranchId = oldInvoice.branch_id || branchId;
+            // 2. Revert old stock adjustments on ProductStock level
             for (const oldItem of oldInvoice.items) {
-                await tx.product.update({
-                    where: { id: oldItem.product_id },
+                await tx.productStock.update({
+                    where: {
+                        company_id_branch_id_product_id: {
+                            company_id: companyId,
+                            branch_id: invoiceBranchId,
+                            product_id: oldItem.product_id,
+                        },
+                    },
                     data: {
                         stock_qty: { decrement: oldItem.qty },
                     },
                 });
             }
-            // 3. Apply new stock adjustments & update cost price
+            // 3. Apply new stock adjustments on ProductStock level & update cost price
             for (const newItem of items) {
                 const prodId = parseInt(newItem.product_id);
                 const qtyInt = parseInt(newItem.qty);
@@ -183,8 +223,26 @@ const updateSupplierInvoice = async (req, res) => {
                 await tx.product.update({
                     where: { id: prodId },
                     data: {
-                        stock_qty: { increment: qtyInt },
                         cost_price: unitCostFloat,
+                    },
+                });
+                await tx.productStock.upsert({
+                    where: {
+                        company_id_branch_id_product_id: {
+                            company_id: companyId,
+                            branch_id: branchId,
+                            product_id: prodId,
+                        },
+                    },
+                    update: {
+                        stock_qty: { increment: qtyInt },
+                    },
+                    create: {
+                        company_id: companyId,
+                        branch_id: branchId,
+                        product_id: prodId,
+                        stock_qty: qtyInt,
+                        low_stock_threshold: 5,
                     },
                 });
             }
@@ -212,9 +270,8 @@ const updateSupplierInvoice = async (req, res) => {
                 },
             });
             // 6. Update linked SupplierTransaction records
-            // Find purchase transaction
             const purchaseTx = await tx.supplierTransaction.findFirst({
-                where: { invoice_id: id, type: 'purchase' },
+                where: { invoice_id: id, type: 'purchase', company_id: companyId },
             });
             if (purchaseTx) {
                 await tx.supplierTransaction.update({
@@ -230,6 +287,7 @@ const updateSupplierInvoice = async (req, res) => {
             else {
                 await tx.supplierTransaction.create({
                     data: {
+                        company_id: companyId,
                         supplier_id: oldInvoice.supplier_id,
                         type: 'purchase',
                         amount: totalFloat,
@@ -240,9 +298,8 @@ const updateSupplierInvoice = async (req, res) => {
                     },
                 });
             }
-            // Find payment transaction
             const paymentTx = await tx.supplierTransaction.findFirst({
-                where: { invoice_id: id, type: 'payment' },
+                where: { invoice_id: id, type: 'payment', company_id: companyId },
             });
             if (amountPaidFloat > 0) {
                 if (paymentTx) {
@@ -259,6 +316,7 @@ const updateSupplierInvoice = async (req, res) => {
                 else {
                     await tx.supplierTransaction.create({
                         data: {
+                            company_id: companyId,
                             supplier_id: oldInvoice.supplier_id,
                             type: 'payment',
                             amount: amountPaidFloat,
@@ -283,6 +341,7 @@ const updateSupplierInvoice = async (req, res) => {
                     amount_paid: amountPaidFloat,
                     notes,
                     invoice_date: parsedInvoiceDate,
+                    branch_id: branchId, // update to active branch if modified
                 },
             });
             // 8. Generate history logs
@@ -313,6 +372,7 @@ const updateSupplierInvoice = async (req, res) => {
             const changesSummary = `تعديل الفاتورة (${is_refund ? 'مرتجع' : 'تحديث'}). التغييرات: ` + itemChanges.join(' | ');
             await tx.supplierInvoiceHistory.create({
                 data: {
+                    company_id: companyId,
                     invoice_id: id,
                     seller_name,
                     action: actionText,
@@ -328,7 +388,7 @@ const updateSupplierInvoice = async (req, res) => {
             timeout: 30000,
             maxWait: 15000,
         });
-        await (0, prisma_1.logUserActivity)(username, is_refund ? 'REFUND_SUPPLIER_INVOICE' : 'UPDATE_SUPPLIER_INVOICE', {
+        await (0, prisma_1.logUserActivity)(companyId, username, is_refund ? 'REFUND_SUPPLIER_INVOICE' : 'UPDATE_SUPPLIER_INVOICE', {
             id,
             total: totalFloat,
             is_refund: !!is_refund,
@@ -342,11 +402,14 @@ const updateSupplierInvoice = async (req, res) => {
 exports.updateSupplierInvoice = updateSupplierInvoice;
 const getSupplierInvoices = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const supplierId = parseInt(req.query.supplierId);
         const page = req.query.page ? parseInt(req.query.page) : 1;
         const limit = req.query.limit ? parseInt(req.query.limit) : 10;
         const skip = (page - 1) * limit;
-        const where = {};
+        const where = {
+            company_id: companyId,
+        };
         if (!isNaN(supplierId)) {
             where.supplier_id = supplierId;
         }
@@ -382,13 +445,22 @@ const getSupplierInvoices = async (req, res) => {
 exports.getSupplierInvoices = getSupplierInvoices;
 const getSupplierInvoiceHistory = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
             res.status(400).json({ error: 'Invalid invoice ID' });
             return;
         }
+        // Verify invoice belongs to company
+        const invoice = await prisma_1.prisma.supplierInvoice.findFirst({
+            where: { id, company_id: companyId },
+        });
+        if (!invoice) {
+            res.status(404).json({ error: 'Invoice not found' });
+            return;
+        }
         const history = await prisma_1.prisma.supplierInvoiceHistory.findMany({
-            where: { invoice_id: id },
+            where: { invoice_id: id, company_id: companyId },
             orderBy: { created_at: 'desc' },
         });
         res.json(history);

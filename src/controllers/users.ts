@@ -51,10 +51,10 @@ export const createUser = async (req: Request, res: Response) => {
     const companyId = req.tenant!.company_id;
     const branchId = req.tenant!.branch_id;
     const username = getUsername(req);
-    const { name, phone } = req.body;
+    const { name, email, password, phone, isAdmin } = req.body;
 
-    if (!name || !phone) {
-      res.status(400).json({ error: 'Username (name) and password/phone are required' });
+    if (!name || !password || !phone) {
+      res.status(400).json({ error: 'Username (name), password, and phone are required' });
       return;
     }
 
@@ -63,7 +63,10 @@ export const createUser = async (req: Request, res: Response) => {
         company_id: companyId,
         branch_id: branchId,
         name,
+        email: email || null,
+        password,
         phone,
+        isAdmin: isAdmin === true || isAdmin === 'true',
         logs: '[]',
       },
     });
@@ -95,15 +98,26 @@ export const updateUser = async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, phone } = req.body;
+    const { name, email, password, phone, isAdmin } = req.body;
+
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (password !== undefined) updateData.password = password;
     if (phone !== undefined) updateData.phone = phone;
+    if (isAdmin !== undefined) updateData.isAdmin = isAdmin === true || isAdmin === 'true';
 
     const user = await prisma.user.update({
       where: { id },
       data: updateData,
     });
+
+    if (user.isAdmin && email !== undefined && existing.email !== email) {
+      await prisma.company.update({
+        where: { id: companyId },
+        data: { email: email }
+      });
+    }
 
     await logUserActivity(companyId, username, 'UPDATE_USER', { id: user.id, name: user.name, changes: req.body });
 
@@ -157,8 +171,11 @@ export const loginUser = async (req: Request, res: Response) => {
     const user = await prisma.user.findFirst({
       where: {
         company_id: companyId,
-        name: username,
-        phone: password,
+        password: password,
+        OR: [
+          { name: username },
+          { email: username }
+        ]
       },
     });
 

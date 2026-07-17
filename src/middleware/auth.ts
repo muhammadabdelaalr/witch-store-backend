@@ -5,6 +5,7 @@ import { verifyAccessToken, TokenPayload } from '../utils/jwt';
 export interface TenantContext {
   company_id: number;
   company_name: string;
+  company_app_name?: string | null;
   license_id: number;
   device_id: string;
   branch_id: number;

@@ -182,6 +182,7 @@ export const tenantResolverMiddleware = async (req: Request, res: Response, next
     req.tenant = {
       company_id: company.id,
       company_name: company.name,
+      company_app_name: company.app_name,
       license_id: license.id,
       device_id: device.device_id,
       branch_id: branchId,

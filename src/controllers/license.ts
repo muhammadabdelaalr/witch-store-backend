@@ -184,6 +184,66 @@ export const activateLicense = async (req: Request, res: Response) => {
       }
     });
 
+    // Ensure default users exist for the company
+    const userCount = await prisma.user.count({
+      where: { company_id: license.company_id }
+    });
+
+    if (userCount === 0) {
+      const defaultBranch = await prisma.branch.findFirst({
+        where: { company_id: license.company_id, is_main: true }
+      }) || await prisma.branch.findFirst({
+        where: { company_id: license.company_id }
+      });
+
+      const branchId = defaultBranch?.id || null;
+
+      // Ensure 'Administrator' exists
+      await prisma.user.upsert({
+        where: {
+          company_id_name: {
+            company_id: license.company_id,
+            name: 'Administrator'
+          }
+        },
+        update: {
+          isAdmin: true
+        },
+        create: {
+          company_id: license.company_id,
+          branch_id: branchId,
+          name: 'Administrator',
+          phone: 'admin',
+          password: 'admin',
+          isAdmin: true,
+          logs: '[]',
+        }
+      });
+
+      // Ensure 'admin' exists
+      await prisma.user.upsert({
+        where: {
+          company_id_name: {
+            company_id: license.company_id,
+            name: 'admin'
+          }
+        },
+        update: {
+          isAdmin: true
+        },
+        create: {
+          company_id: license.company_id,
+          branch_id: branchId,
+          name: 'admin',
+          phone: 'admin',
+          password: 'admin',
+          isAdmin: true,
+          logs: '[]',
+        }
+      });
+      console.log(`Created default Administrator & admin users for company ID ${license.company_id}`);
+    }
+
     // F. Build Snapshot
     const { allowedModules, allowedFeatures } = await getLicensePermissions(license.id, license.plan_id, license.allow_all_modules);
     
@@ -191,6 +251,7 @@ export const activateLicense = async (req: Request, res: Response) => {
       license_key_hash: crypto.createHash('sha256').update(license.license_key).digest('hex'),
       company_id: license.company_id,
       company_name: license.company.name,
+      app_name: license.company.app_name || null,
       license_type: license.type,
       expires_at: license.expires_at ? license.expires_at.toISOString().split('T')[0] : null,
       allowed_modules: allowedModules,
@@ -208,7 +269,8 @@ export const activateLicense = async (req: Request, res: Response) => {
         id: license.company.id,
         name: license.company.name,
         legal_name: license.company.legal_name,
-        status: license.company.status
+        status: license.company.status,
+        app_name: license.company.app_name || null
       },
       license: {
         id: license.id,
@@ -246,6 +308,7 @@ export const validateLicense = async (req: Request, res: Response) => {
       license_key_hash: crypto.createHash('sha256').update(license.license_key).digest('hex'),
       company_id: tenant.company_id,
       company_name: tenant.company_name,
+      app_name: tenant.company_app_name || null,
       license_type: license.type,
       expires_at: license.expires_at ? license.expires_at.toISOString().split('T')[0] : null,
       allowed_modules: tenant.allowed_modules,
@@ -259,6 +322,7 @@ export const validateLicense = async (req: Request, res: Response) => {
     res.json({
       status: 'valid',
       company: tenant.company_name,
+      app_name: tenant.company_app_name || null,
       license_type: license.type,
       expires_at: license.expires_at,
       allowed_modules: tenant.allowed_modules,

@@ -4,11 +4,14 @@ exports.getSupplierTransactions = exports.addSupplierTransaction = exports.updat
 const prisma_1 = require("../prisma");
 const getAllSuppliers = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const search = req.query.search;
         const page = req.query.page ? parseInt(req.query.page) : 1;
         const limit = req.query.limit ? parseInt(req.query.limit) : 10;
         const skip = (page - 1) * limit;
-        const where = {};
+        const where = {
+            company_id: companyId,
+        };
         if (search) {
             where.OR = [
                 { name: { contains: search, mode: 'insensitive' } },
@@ -42,6 +45,7 @@ const getAllSuppliers = async (req, res) => {
 exports.getAllSuppliers = getAllSuppliers;
 const createSupplier = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const username = (0, prisma_1.getUsername)(req);
         const { name, phone, email, address, balance } = req.body;
         if (!name) {
@@ -50,6 +54,7 @@ const createSupplier = async (req, res) => {
         }
         const supplier = await prisma_1.prisma.supplier.create({
             data: {
+                company_id: companyId,
                 name,
                 phone: phone || null,
                 email: email || null,
@@ -57,7 +62,7 @@ const createSupplier = async (req, res) => {
                 balance: balance ? parseFloat(balance) : 0,
             },
         });
-        await (0, prisma_1.logUserActivity)(username, 'CREATE_SUPPLIER', {
+        await (0, prisma_1.logUserActivity)(companyId, username, 'CREATE_SUPPLIER', {
             id: supplier.id,
             name: supplier.name,
         });
@@ -70,10 +75,19 @@ const createSupplier = async (req, res) => {
 exports.createSupplier = createSupplier;
 const updateSupplier = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const username = (0, prisma_1.getUsername)(req);
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
             res.status(400).json({ error: 'Invalid supplier ID' });
+            return;
+        }
+        // Ensure supplier belongs to company
+        const existing = await prisma_1.prisma.supplier.findFirst({
+            where: { id, company_id: companyId },
+        });
+        if (!existing) {
+            res.status(404).json({ error: 'Supplier not found' });
             return;
         }
         const updateData = {};
@@ -90,7 +104,7 @@ const updateSupplier = async (req, res) => {
             where: { id },
             data: updateData,
         });
-        await (0, prisma_1.logUserActivity)(username, 'UPDATE_SUPPLIER', {
+        await (0, prisma_1.logUserActivity)(companyId, username, 'UPDATE_SUPPLIER', {
             id: supplier.id,
             name: supplier.name,
             changes: req.body,
@@ -104,6 +118,7 @@ const updateSupplier = async (req, res) => {
 exports.updateSupplier = updateSupplier;
 const addSupplierTransaction = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const username = (0, prisma_1.getUsername)(req);
         const { supplier_id, type, amount, notes, date, seller_name, invoice_id } = req.body;
         if (!supplier_id || !type || amount === undefined) {
@@ -122,29 +137,27 @@ const addSupplierTransaction = async (req, res) => {
         const amountFloat = parseFloat(amount);
         const invoiceIdInt = invoice_id ? parseInt(invoice_id) : undefined;
         const transaction = await prisma_1.prisma.$transaction(async (tx) => {
-            // 1. Verify supplier exists
-            const supplier = await tx.supplier.findUnique({
-                where: { id: supplierIdInt },
+            // 1. Verify supplier exists and belongs to company
+            const supplier = await tx.supplier.findFirst({
+                where: { id: supplierIdInt, company_id: companyId },
             });
             if (!supplier) {
                 throw new Error('Supplier not found');
             }
-            // If invoice_id is provided, verify it exists and belongs to this supplier
+            // If invoice_id is provided, verify it exists and belongs to this supplier & company
             let invoice = null;
             if (invoiceIdInt) {
-                invoice = await tx.supplierInvoice.findUnique({
-                    where: { id: invoiceIdInt },
+                invoice = await tx.supplierInvoice.findFirst({
+                    where: { id: invoiceIdInt, supplier_id: supplierIdInt, company_id: companyId },
                 });
                 if (!invoice) {
                     throw new Error('Supplier invoice not found');
-                }
-                if (invoice.supplier_id !== supplierIdInt) {
-                    throw new Error('Invoice does not belong to this supplier');
                 }
             }
             // 2. Create supplier transaction
             const newTx = await tx.supplierTransaction.create({
                 data: {
+                    company_id: companyId,
                     supplier_id: supplierIdInt,
                     type,
                     amount: amountFloat,
@@ -177,6 +190,7 @@ const addSupplierTransaction = async (req, res) => {
                 // Create a history log entry for the invoice
                 await tx.supplierInvoiceHistory.create({
                     data: {
+                        company_id: companyId,
                         invoice_id: invoiceIdInt,
                         seller_name: seller_name || 'سيستم',
                         action: 'edit',
@@ -187,7 +201,7 @@ const addSupplierTransaction = async (req, res) => {
             }
             return newTx;
         });
-        await (0, prisma_1.logUserActivity)(username, 'SUPPLIER_TRANSACTION', {
+        await (0, prisma_1.logUserActivity)(companyId, username, 'SUPPLIER_TRANSACTION', {
             supplier_id: supplierIdInt,
             type,
             amount: amountFloat,
@@ -202,13 +216,22 @@ const addSupplierTransaction = async (req, res) => {
 exports.addSupplierTransaction = addSupplierTransaction;
 const getSupplierTransactions = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const supplierId = parseInt(req.params.id);
         if (isNaN(supplierId)) {
             res.status(400).json({ error: 'Invalid supplier ID' });
             return;
         }
+        // Verify supplier belongs to company
+        const supplier = await prisma_1.prisma.supplier.findFirst({
+            where: { id: supplierId, company_id: companyId },
+        });
+        if (!supplier) {
+            res.status(404).json({ error: 'Supplier not found' });
+            return;
+        }
         const transactions = await prisma_1.prisma.supplierTransaction.findMany({
-            where: { supplier_id: supplierId },
+            where: { supplier_id: supplierId, company_id: companyId },
             orderBy: { created_at: 'desc' },
         });
         res.json(transactions);

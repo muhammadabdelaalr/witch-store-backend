@@ -4,9 +4,11 @@ import {
   getCompanies,
   createCompany,
   updateCompany,
+  deleteCompany,
   getPlans,
   createPlan,
   updatePlan,
+  deletePlan,
   getModules,
   getFeatures,
   getLicenses,
@@ -21,7 +23,10 @@ import {
   unblockDevice,
   getPayments,
   createPayment,
-  getOwnerAuditLogs
+  getOwnerAuditLogs,
+  getDashboardStats,
+  getLookups,
+  updateCompanyStatus
 } from '../controllers/owner';
 import { ownerAuthMiddleware, rateLimitMiddleware } from '../middleware/auth';
 
@@ -44,15 +49,22 @@ router.post(
 // Apply Owner Authentication middleware to all subsequent routes
 router.use(ownerAuthMiddleware);
 
+// 1.5 Dashboard & Lookups
+router.get('/dashboard', getDashboardStats);
+router.get('/lookups', getLookups);
+
 // 2. Companies Management
 router.get('/companies', getCompanies);
 router.post('/companies', createCompany);
 router.patch('/companies/:id', updateCompany);
+router.patch('/companies/:id/status', updateCompanyStatus);
+router.delete('/companies/:id', deleteCompany);
 
 // 3. Plans Management
 router.get('/plans', getPlans);
 router.post('/plans', createPlan);
 router.patch('/plans/:id', updatePlan);
+router.delete('/plans/:id', deletePlan);
 
 // 4. Modules & Features Lookups
 router.get('/modules', getModules);

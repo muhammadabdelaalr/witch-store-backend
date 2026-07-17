@@ -204,8 +204,9 @@ async function runMigration() {
           id: u.id,
           name: u.name,
           phone: u.phone,
+          password: u.phone, // phone acted as password in old SQLite database
           logs: u.logs || '[]',
-          created_at: new Date(u.created_at || Date.now()),
+          registrationDate: new Date(u.created_at || Date.now()),
         }
       });
     }

@@ -2,7 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const reports_1 = require("../controllers/reports");
+const auth_1 = require("../middleware/auth");
+const tenant_1 = require("../middleware/tenant");
+const guards_1 = require("../middleware/guards");
 const router = (0, express_1.Router)();
+router.use(auth_1.authTokenMiddleware);
+router.use(tenant_1.tenantResolverMiddleware);
 /**
  * @swagger
  * tags:
@@ -19,7 +24,7 @@ const router = (0, express_1.Router)();
  *       200:
  *         description: Success
  */
-router.get('/dashboard', reports_1.getDashboardStats);
+router.get('/dashboard', (0, guards_1.requireModule)('dashboard'), reports_1.getDashboardStats);
 /**
  * @swagger
  * /api/reports/sales:
@@ -30,7 +35,7 @@ router.get('/dashboard', reports_1.getDashboardStats);
  *       200:
  *         description: Success
  */
-router.get('/sales', reports_1.getSalesReport);
+router.get('/sales', (0, guards_1.requireModule)('reports'), reports_1.getSalesReport);
 /**
  * @swagger
  * /api/reports/profit:
@@ -41,5 +46,5 @@ router.get('/sales', reports_1.getSalesReport);
  *       200:
  *         description: Success
  */
-router.get('/profit', reports_1.getProfitReport);
+router.get('/profit', (0, guards_1.requireModule)('reports'), reports_1.getProfitReport);
 exports.default = router;

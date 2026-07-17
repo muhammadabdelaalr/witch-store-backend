@@ -4,7 +4,9 @@ exports.createCategory = exports.getAllCategories = void 0;
 const prisma_1 = require("../prisma");
 const getAllCategories = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const categories = await prisma_1.prisma.category.findMany({
+            where: { company_id: companyId },
             orderBy: {
                 name: 'asc',
             },
@@ -18,6 +20,7 @@ const getAllCategories = async (req, res) => {
 exports.getAllCategories = getAllCategories;
 const createCategory = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
         const username = (0, prisma_1.getUsername)(req);
         const { name } = req.body;
         if (!name) {
@@ -25,9 +28,12 @@ const createCategory = async (req, res) => {
             return;
         }
         const category = await prisma_1.prisma.category.create({
-            data: { name },
+            data: {
+                name,
+                company_id: companyId,
+            },
         });
-        await (0, prisma_1.logUserActivity)(username, 'CREATE_CATEGORY', {
+        await (0, prisma_1.logUserActivity)(companyId, username, 'CREATE_CATEGORY', {
             id: category.id,
             name: category.name,
         });

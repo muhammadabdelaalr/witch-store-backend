@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.prisma = void 0;
 exports.getUsername = getUsername;
 exports.logUserActivity = logUserActivity;
-const client_1 = require("./generated/prisma/client");
+const prisma_1 = require("./generated/prisma");
 const adapter_pg_1 = require("@prisma/adapter-pg");
 const pg_1 = require("pg");
 const dotenv_1 = __importDefault(require("dotenv"));
@@ -15,7 +15,7 @@ dotenv_1.default.config();
 const connectionString = process.env.DATABASE_URL;
 const pool = new pg_1.Pool({ connectionString });
 const adapter = new adapter_pg_1.PrismaPg(pool);
-exports.prisma = new client_1.PrismaClient({ adapter });
+exports.prisma = new prisma_1.PrismaClient({ adapter });
 // Helper to get username from request headers safely
 function getUsername(req) {
     const header = req.headers['x-user-name'];
@@ -28,12 +28,15 @@ function getUsername(req) {
     }
 }
 // Helper functions for user logging
-async function logUserActivity(username, action, details) {
+async function logUserActivity(company_id, username, action, details) {
     if (!username)
         return;
     try {
-        const user = await exports.prisma.user.findUnique({
-            where: { name: username },
+        const user = await exports.prisma.user.findFirst({
+            where: {
+                company_id: company_id || 1,
+                name: username,
+            },
         });
         if (user) {
             const logs = JSON.parse(user.logs || '[]');

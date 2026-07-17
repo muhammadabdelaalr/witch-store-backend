@@ -6,6 +6,7 @@ export interface LicenseSnapshot {
   license_key_hash: string;
   company_id: number;
   company_name: string;
+  app_name?: string | null;
   license_type: string;
   expires_at: string | null;
   allowed_modules: string[];

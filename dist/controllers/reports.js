@@ -4,6 +4,8 @@ exports.getProfitReport = exports.getSalesReport = exports.getDashboardStats = v
 const prisma_1 = require("../prisma");
 const getDashboardStats = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
+        const branchId = req.tenant.branch_id;
         const categoryId = req.query.categoryId ? parseInt(req.query.categoryId) : undefined;
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
@@ -13,10 +15,12 @@ const getDashboardStats = async (req, res) => {
         let todayRevenue = 0;
         let todayTransactionsCount = 0;
         if (categoryId) {
-            // Find sale items for products in category sold today
+            // Find sale items for products in category sold today at this branch/company
             const saleItems = await prisma_1.prisma.saleItem.findMany({
                 where: {
                     sale: {
+                        company_id: companyId,
+                        branch_id: branchId,
                         created_at: { gte: todayStart, lte: todayEnd },
                     },
                     product: {
@@ -27,15 +31,15 @@ const getDashboardStats = async (req, res) => {
                     sale: true,
                 },
             });
-            // Sum revenue (unit_price * qty)
             todayRevenue = saleItems.reduce((sum, item) => sum + item.unit_price * item.qty, 0);
-            // Unique sales count
             const uniqueSaleIds = new Set(saleItems.map((item) => item.sale_id));
             todayTransactionsCount = uniqueSaleIds.size;
         }
         else {
             const salesToday = await prisma_1.prisma.sale.findMany({
                 where: {
+                    company_id: companyId,
+                    branch_id: branchId,
                     created_at: { gte: todayStart, lte: todayEnd },
                 },
             });
@@ -43,27 +47,34 @@ const getDashboardStats = async (req, res) => {
             todayTransactionsCount = salesToday.length;
         }
         // 2. Customer Count
-        const customerCount = await prisma_1.prisma.customer.count();
-        // 3. Low Stock Items Count
+        const customerCount = await prisma_1.prisma.customer.count({
+            where: { company_id: companyId },
+        });
+        // 3. Low Stock Items Count at branch level
         let lowStockCount = 0;
-        if (categoryId) {
-            const products = await prisma_1.prisma.product.findMany({
-                where: {
-                    category_id: categoryId,
+        const products = await prisma_1.prisma.product.findMany({
+            where: {
+                company_id: companyId,
+                ...(categoryId ? { category_id: categoryId } : {}),
+            },
+            include: {
+                product_stocks: {
+                    where: { branch_id: branchId },
                 },
-            });
-            lowStockCount = products.filter((p) => p.stock_qty <= (p.low_stock_threshold ?? 5)).length;
-        }
-        else {
-            const products = await prisma_1.prisma.product.findMany();
-            lowStockCount = products.filter((p) => p.stock_qty <= (p.low_stock_threshold ?? 5)).length;
-        }
+            },
+        });
+        lowStockCount = products.filter((p) => {
+            const ps = p.product_stocks[0];
+            return (ps ? ps.stock_qty : 0) <= (ps ? ps.low_stock_threshold : 5);
+        }).length;
         // 4. Weekly Sales Data (Last 7 Days)
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         sevenDaysAgo.setHours(0, 0, 0, 0);
         const weeklySales = await prisma_1.prisma.sale.findMany({
             where: {
+                company_id: companyId,
+                branch_id: branchId,
                 created_at: { gte: sevenDaysAgo },
                 ...(categoryId
                     ? {
@@ -116,6 +127,10 @@ const getDashboardStats = async (req, res) => {
         // 5. Top Selling Products (Top 5)
         const topItems = await prisma_1.prisma.saleItem.findMany({
             where: {
+                sale: {
+                    company_id: companyId,
+                    branch_id: branchId,
+                },
                 ...(categoryId
                     ? {
                         product: {
@@ -163,6 +178,8 @@ const getDashboardStats = async (req, res) => {
 exports.getDashboardStats = getDashboardStats;
 const getSalesReport = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
+        const branchId = req.tenant.branch_id;
         const { from, to, sale_type } = req.query;
         if (!from || !to) {
             res.status(400).json({ error: 'from and to date parameters are required' });
@@ -172,6 +189,8 @@ const getSalesReport = async (req, res) => {
         const endDate = new Date(to + 'T23:59:59.999Z');
         const sales = await prisma_1.prisma.sale.findMany({
             where: {
+                company_id: companyId,
+                branch_id: branchId,
                 created_at: {
                     gte: startDate,
                     lte: endDate,
@@ -230,6 +249,8 @@ const getSalesReport = async (req, res) => {
         });
         const refunds = await prisma_1.prisma.refund.findMany({
             where: {
+                company_id: companyId,
+                branch_id: branchId,
                 created_at: {
                     gte: startDate,
                     lte: endDate,
@@ -238,7 +259,7 @@ const getSalesReport = async (req, res) => {
             },
             include: {
                 items: true,
-            }
+            },
         });
         refunds.forEach((refund) => {
             totalRevenue -= refund.total;
@@ -272,7 +293,7 @@ const getSalesReport = async (req, res) => {
             total: paymentMethods[method].total,
             count: paymentMethods[method].count,
         }))
-            .filter((m) => m.count > 0); // Only return used methods
+            .filter((m) => m.count > 0);
         res.json({
             totalSales: sales.length,
             totalRevenue,
@@ -290,6 +311,8 @@ const getSalesReport = async (req, res) => {
 exports.getSalesReport = getSalesReport;
 const getProfitReport = async (req, res) => {
     try {
+        const companyId = req.tenant.company_id;
+        const branchId = req.tenant.branch_id;
         const { from, to, sale_type } = req.query;
         if (!from || !to) {
             res.status(400).json({ error: 'from and to date parameters are required' });
@@ -299,6 +322,8 @@ const getProfitReport = async (req, res) => {
         const endDate = new Date(to + 'T23:59:59.999Z');
         const sales = await prisma_1.prisma.sale.findMany({
             where: {
+                company_id: companyId,
+                branch_id: branchId,
                 created_at: {
                     gte: startDate,
                     lte: endDate,
@@ -329,6 +354,8 @@ const getProfitReport = async (req, res) => {
         });
         const refunds = await prisma_1.prisma.refund.findMany({
             where: {
+                company_id: companyId,
+                branch_id: branchId,
                 created_at: {
                     gte: startDate,
                     lte: endDate,
@@ -337,7 +364,7 @@ const getProfitReport = async (req, res) => {
             },
             include: {
                 items: true,
-            }
+            },
         });
         refunds.forEach((refund) => {
             totalRevenue -= refund.total;
@@ -357,6 +384,8 @@ const getProfitReport = async (req, res) => {
         const grossProfit = totalRevenue - costOfGoodsSold;
         const expenses = await prisma_1.prisma.expense.findMany({
             where: {
+                company_id: companyId,
+                branch_id: branchId,
                 date: {
                     gte: from,
                     lte: to,

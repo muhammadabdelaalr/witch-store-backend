@@ -3,7 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const suppliers_1 = require("../controllers/suppliers");
 const supplierInvoices_1 = require("../controllers/supplierInvoices");
+const auth_1 = require("../middleware/auth");
+const tenant_1 = require("../middleware/tenant");
+const guards_1 = require("../middleware/guards");
 const router = (0, express_1.Router)();
+router.use(auth_1.authTokenMiddleware);
+router.use(tenant_1.tenantResolverMiddleware);
 /**
  * @swagger
  * tags:
@@ -43,8 +48,8 @@ const router = (0, express_1.Router)();
  *       200:
  *         description: Success
  */
-router.get('/', suppliers_1.getAllSuppliers);
-router.post('/', suppliers_1.createSupplier);
+router.get('/', (0, guards_1.requireModule)('suppliers'), suppliers_1.getAllSuppliers);
+router.post('/', (0, guards_1.requireModule)('suppliers'), suppliers_1.createSupplier);
 /**
  * @swagger
  * /api/suppliers/{id}:
@@ -76,7 +81,7 @@ router.post('/', suppliers_1.createSupplier);
  *         schema:
  *           type: string
  */
-router.put('/:id', suppliers_1.updateSupplier);
+router.put('/:id', (0, guards_1.requireModule)('suppliers'), suppliers_1.updateSupplier);
 /**
  * @swagger
  * /api/suppliers/transaction:
@@ -107,7 +112,7 @@ router.put('/:id', suppliers_1.updateSupplier);
  *       200:
  *         description: Success
  */
-router.post('/transaction', suppliers_1.addSupplierTransaction);
+router.post('/transaction', (0, guards_1.requireModule)('suppliers'), suppliers_1.addSupplierTransaction);
 /**
  * @swagger
  * /api/suppliers/{id}/transactions:
@@ -124,9 +129,9 @@ router.post('/transaction', suppliers_1.addSupplierTransaction);
  *         schema:
  *           type: string
  */
-router.get('/:id/transactions', suppliers_1.getSupplierTransactions);
-router.post('/invoices', supplierInvoices_1.createSupplierInvoice);
-router.put('/invoices/:id', supplierInvoices_1.updateSupplierInvoice);
-router.get('/invoices', supplierInvoices_1.getSupplierInvoices);
-router.get('/invoices/:id/history', supplierInvoices_1.getSupplierInvoiceHistory);
+router.get('/:id/transactions', (0, guards_1.requireModule)('suppliers'), suppliers_1.getSupplierTransactions);
+router.post('/invoices', (0, guards_1.requireModule)('supplier_invoices'), supplierInvoices_1.createSupplierInvoice);
+router.put('/invoices/:id', (0, guards_1.requireModule)('supplier_invoices'), supplierInvoices_1.updateSupplierInvoice);
+router.get('/invoices', (0, guards_1.requireModule)('supplier_invoices'), supplierInvoices_1.getSupplierInvoices);
+router.get('/invoices/:id/history', (0, guards_1.requireModule)('supplier_invoices'), supplierInvoices_1.getSupplierInvoiceHistory);
 exports.default = router;

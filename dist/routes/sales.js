@@ -3,7 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const sales_1 = require("../controllers/sales");
 const refunds_1 = require("../controllers/refunds");
+const auth_1 = require("../middleware/auth");
+const tenant_1 = require("../middleware/tenant");
+const guards_1 = require("../middleware/guards");
 const router = (0, express_1.Router)();
+router.use(auth_1.authTokenMiddleware);
+router.use(tenant_1.tenantResolverMiddleware);
 /**
  * @swagger
  * tags:
@@ -70,8 +75,8 @@ const router = (0, express_1.Router)();
  *       200:
  *         description: Success
  */
-router.post('/', sales_1.createSale);
-router.get('/', sales_1.getAllSales);
+router.post('/', (0, guards_1.requireModule)('pos'), sales_1.createSale);
+router.get('/', (0, guards_1.requireModule)('pos'), sales_1.getAllSales);
 /**
  * @swagger
  * /api/sales/{id}:
@@ -88,7 +93,7 @@ router.get('/', sales_1.getAllSales);
  *         schema:
  *           type: string
  */
-router.get('/:id', sales_1.getSaleById);
+router.get('/:id', (0, guards_1.requireModule)('pos'), sales_1.getSaleById);
 /**
  * @swagger
  * /api/sales/{id}/refund:
@@ -125,5 +130,5 @@ router.get('/:id', sales_1.getSaleById);
  *       201:
  *         description: Success
  */
-router.post('/:id/refund', refunds_1.createRefund);
+router.post('/:id/refund', (0, guards_1.requireModule)('refunds'), refunds_1.createRefund);
 exports.default = router;
