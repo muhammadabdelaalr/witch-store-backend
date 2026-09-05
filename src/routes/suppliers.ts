@@ -15,6 +15,8 @@ import {
 import { authTokenMiddleware } from '../middleware/auth';
 import { tenantResolverMiddleware } from '../middleware/tenant';
 import { requireModule } from '../middleware/guards';
+import { requirePermission } from '../middleware/permission';
+import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
 
@@ -61,8 +63,8 @@ router.use(tenantResolverMiddleware);
  *       200:
  *         description: Success
  */
-router.get('/', requireModule('suppliers'), getAllSuppliers);
-router.post('/', requireModule('suppliers'), createSupplier);
+router.get('/', requireModule('suppliers'), requirePermission(PERMISSIONS.SUPPLIER_READ), getAllSuppliers);
+router.post('/', requireModule('suppliers'), requirePermission(PERMISSIONS.SUPPLIER_CREATE), createSupplier);
 
 /**
  * @swagger
@@ -95,7 +97,7 @@ router.post('/', requireModule('suppliers'), createSupplier);
  *         schema:
  *           type: string
  */
-router.put('/:id', requireModule('suppliers'), updateSupplier);
+router.put('/:id', requireModule('suppliers'), requirePermission(PERMISSIONS.SUPPLIER_UPDATE), updateSupplier);
 
 /**
  * @swagger
@@ -127,7 +129,7 @@ router.put('/:id', requireModule('suppliers'), updateSupplier);
  *       200:
  *         description: Success
  */
-router.post('/transaction', requireModule('suppliers'), addSupplierTransaction);
+router.post('/transaction', requireModule('suppliers'), requirePermission(PERMISSIONS.SUPPLIER_PAYMENT), addSupplierTransaction);
 
 /**
  * @swagger
@@ -145,11 +147,11 @@ router.post('/transaction', requireModule('suppliers'), addSupplierTransaction);
  *         schema:
  *           type: string
  */
-router.get('/:id/transactions', requireModule('suppliers'), getSupplierTransactions);
+router.get('/:id/transactions', requireModule('suppliers'), requirePermission(PERMISSIONS.SUPPLIER_READ), getSupplierTransactions);
 
-router.post('/invoices', requireModule('supplier_invoices'), createSupplierInvoice);
-router.put('/invoices/:id', requireModule('supplier_invoices'), updateSupplierInvoice);
-router.get('/invoices', requireModule('supplier_invoices'), getSupplierInvoices);
-router.get('/invoices/:id/history', requireModule('supplier_invoices'), getSupplierInvoiceHistory);
+router.post('/invoices', requireModule('supplier_invoices'), requirePermission(PERMISSIONS.SUPPLIER_INVOICE_CREATE), createSupplierInvoice);
+router.put('/invoices/:id', requireModule('supplier_invoices'), requirePermission(PERMISSIONS.SUPPLIER_INVOICE_UPDATE), updateSupplierInvoice);
+router.get('/invoices', requireModule('supplier_invoices'), requirePermission(PERMISSIONS.SUPPLIER_READ), getSupplierInvoices);
+router.get('/invoices/:id/history', requireModule('supplier_invoices'), requirePermission(PERMISSIONS.SUPPLIER_READ), getSupplierInvoiceHistory);
 
 export default router;

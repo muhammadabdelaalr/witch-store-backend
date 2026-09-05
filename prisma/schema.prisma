@@ -41,6 +41,8 @@ model Company {
   refunds                Refund[]
   supplier_invoice_history SupplierInvoiceHistory[]
   product_stocks         ProductStock[]
+  sale_payments          SalePayment[]
+  inventory_movements    InventoryMovement[]
 
   @@map("companies")
 }
@@ -63,6 +65,7 @@ model Branch {
   supplier_invoices   SupplierInvoice[]
   users               User[]
   product_stocks      ProductStock[]
+  inventory_movements InventoryMovement[]
 
   @@map("branches")
 }
@@ -275,7 +278,7 @@ model OwnerAdminUser {
   id            Int             @id @default(autoincrement())
   name          String
   email         String          @unique
-  password_hash String
+  password_hash String          // bcrypt hash
   role          String          @default("owner") // owner | support | sales
   created_at    DateTime        @default(now())
   updated_at    DateTime        @updatedAt
@@ -311,14 +314,30 @@ model LicenseAuditLog {
 }
 
 model RefreshToken {
-  id         Int      @id @default(autoincrement())
-  token      String   @unique
-  user_name  String
-  device_id  String
-  expires_at DateTime
-  created_at DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  token       String?  @unique // deprecated, kept temporarily for migration safety
+  token_hash  String   @unique // SHA-256 hex of the raw refresh token
+  user_name   String
+  device_id   String
+  revoked     Boolean  @default(false)
+  expires_at  DateTime
+  created_at  DateTime @default(now())
 
+  @@index([device_id])
   @@map("refresh_tokens")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique // owner | branch_manager | cashier | sales | inventory | purchasing | accountant | viewer
+  name        String
+  permissions String[] // e.g. ["users:read", "pos:sale"]
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  users       User[]
+
+  @@map("roles")
 }
 
 // ==========================================
@@ -355,6 +374,7 @@ model Product {
   sell_price          Float      @default(0)
   stock_qty           Int        @default(0) // Kept for safety during migration
   low_stock_threshold Int?       @default(5)
+  is_active           Boolean    @default(true)
   image_path          String?
   created_at          DateTime   @default(now())
   updated_at          DateTime   @updatedAt
@@ -362,12 +382,14 @@ model Product {
   refund_items        RefundItem[]
   supplier_invoice_items SupplierInvoiceItem[]
   product_stocks      ProductStock[]
+  inventory_movements InventoryMovement[]
 
   @@unique([company_id, sku])
   @@unique([company_id, barcode])
   @@index([barcode], map: "idx_products_barcode")
   @@index([sku], map: "idx_products_sku")
   @@index([category_id], map: "idx_products_category")
+  @@index([company_id, category_id, is_active], map: "idx_products_company_category_active")
   @@map("products")
 }
 
@@ -441,28 +463,39 @@ enum SaleType {
 }
 
 model Sale {
-  id             Int           @id @default(autoincrement())
-  company_id     Int
-  company        Company       @relation(fields: [company_id], references: [id], onDelete: Cascade)
-  branch_id      Int?
-  branch         Branch?       @relation(fields: [branch_id], references: [id], onDelete: SetNull)
-  customer_id    Int?
-  customer       Customer?     @relation(fields: [customer_id], references: [id])
-  customer_name  String?
-  total          Float
-  discount       Float         @default(0)
-  tax            Float         @default(0)
-  amount_paid    Float
-  payment_method PaymentMethod
-  sale_type      SaleType      @default(retail)
-  notes          String?
-  seller_name    String?
-  created_at     DateTime      @default(now())
-  items          SaleItem[]
-  refunds        Refund[]
+  id              Int            @id @default(autoincrement())
+  company_id      Int
+  company         Company        @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id       Int?
+  branch          Branch?        @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  customer_id     Int?
+  customer        Customer?      @relation(fields: [customer_id], references: [id])
+  customer_name   String?
+  invoice_number  String?
+  status          String         @default("completed") // completed | held | cancelled | refunded
+  total           Float
+  discount        Float          @default(0)
+  tax             Float          @default(0)
+  amount_paid     Float
+  payment_method  PaymentMethod
+  sale_type       SaleType       @default(retail)
+  notes           String?
+  seller_name     String?
+  cancel_reason   String?
+  cancelled_at    DateTime?
+  cancelled_by    String?
+  idempotency_key String?        @unique
+  created_at      DateTime       @default(now())
+  items           SaleItem[]
+  refunds         Refund[]
+  sale_payments   SalePayment[]
 
+  @@unique([company_id, invoice_number])
   @@index([created_at], map: "idx_sales_date")
   @@index([customer_id], map: "idx_sales_customer")
+  @@index([company_id, branch_id, created_at], map: "idx_sales_company_branch_date")
+  @@index([company_id, invoice_number], map: "idx_sales_company_invoice")
+  @@index([company_id, branch_id, status, created_at], map: "idx_sales_company_branch_status_date")
   @@map("sales")
 }
 
@@ -475,10 +508,49 @@ model SaleItem {
   qty        Int
   unit_price Float
   cost_price Float
+  line_discount Float @default(0)
 
   @@index([sale_id], map: "idx_sale_items_sale")
   @@index([product_id], map: "idx_sale_items_product")
   @@map("sale_items")
+}
+
+model SalePayment {
+  id         Int           @id @default(autoincrement())
+  sale_id    Int
+  sale       Sale          @relation(fields: [sale_id], references: [id], onDelete: Cascade)
+  company_id Int
+  company    Company       @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  method     PaymentMethod
+  amount     Float
+  created_at DateTime      @default(now())
+
+  @@index([sale_id], map: "idx_sale_payments_sale")
+  @@index([company_id, method, created_at], map: "idx_sale_payments_company_method_date")
+  @@map("sale_payments")
+}
+
+model InventoryMovement {
+  id              Int      @id @default(autoincrement())
+  company_id      Int
+  company         Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id       Int
+  branch          Branch   @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  product_id      Int
+  product         Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  movement_type   String   // SALE, SALE_CANCEL, PURCHASE, PURCHASE_RETURN, ADJUSTMENT_IN, ADJUSTMENT_OUT, DAMAGE, OPENING, REFUND
+  quantity_delta  Int
+  balance_after   Int?
+  reference_type  String   // sale, refund, purchase, adjustment, etc.
+  reference_id    Int
+  user_id         Int?
+  notes           String?
+  created_at      DateTime @default(now())
+
+  @@index([company_id, branch_id, product_id], map: "idx_inventory_movements_company_branch_product")
+  @@index([company_id, branch_id, created_at], map: "idx_inventory_movements_company_branch_date")
+  @@index([reference_type, reference_id], map: "idx_inventory_movements_reference")
+  @@map("inventory_movements")
 }
 
 model Expense {
@@ -550,15 +622,18 @@ model User {
   company          Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
   branch_id        Int?
   branch           Branch?  @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  role_id          Int?
+  role             Role?    @relation(fields: [role_id], references: [id], onDelete: SetNull)
   name             String
   email            String?
-  password         String   @default("admin")
+  password         String   @default("admin") // bcrypt hash
   phone            String
   isAdmin          Boolean  @default(false)
   logs             String   @default("[]") // JSON string storing activity logs
   registrationDate DateTime @default(now())
 
   @@unique([company_id, name])
+  @@index([role_id])
   @@map("users")
 }
 

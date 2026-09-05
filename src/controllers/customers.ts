@@ -1,6 +1,18 @@
 import { Request, Response } from 'express';
 import { prisma, logUserActivity, getUsername } from '../prisma';
 
+function success<T>(res: Response, data: T, status = 200) {
+  return res.status(status).json({ success: true, data });
+}
+
+function paginatedSuccess<T>(res: Response, data: T[], meta: { total: number; page: number; limit: number; totalPages: number }) {
+  return res.json({ success: true, data, meta });
+}
+
+function errorResponse(res: Response, status: number, code: string, message: string, details?: any) {
+  return res.status(status).json({ success: false, code, message, details });
+}
+
 export const getAllCustomers = async (req: Request, res: Response) => {
   try {
     const companyId = req.tenant!.company_id;
@@ -9,9 +21,7 @@ export const getAllCustomers = async (req: Request, res: Response) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      company_id: companyId,
-    };
+    const where: any = { company_id: companyId };
 
     if (search) {
       where.OR = [
@@ -34,15 +44,9 @@ export const getAllCustomers = async (req: Request, res: Response) => {
 
     const totalPages = Math.ceil(total / limit);
 
-    res.json({
-      data: customers,
-      total,
-      page,
-      limit,
-      totalPages,
-    });
+    return paginatedSuccess(res, customers, { total, page, limit, totalPages });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -52,15 +56,14 @@ export const createCustomer = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const { name, phone, email, address, balance } = req.body;
 
-    if (!name || !phone) {
-      res.status(400).json({ error: 'Customer name and phone number are required' });
-      return;
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Customer name is required');
     }
 
     const customer = await prisma.customer.create({
       data: {
         company_id: companyId,
-        name,
+        name: name.trim(),
         phone: phone || null,
         email: email || null,
         address: address || null,
@@ -73,9 +76,9 @@ export const createCustomer = async (req: Request, res: Response) => {
       name: customer.name,
     });
 
-    res.status(201).json(customer);
+    return success(res, customer, 201);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -85,17 +88,14 @@ export const updateCustomer = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
-      res.status(400).json({ error: 'Invalid customer ID' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid customer ID');
     }
 
-    // Ensure customer belongs to company
     const existing = await prisma.customer.findFirst({
       where: { id, company_id: companyId },
     });
     if (!existing) {
-      res.status(404).json({ error: 'Customer not found' });
-      return;
+      return errorResponse(res, 404, 'NOT_FOUND', 'Customer not found');
     }
 
     const updateData: any = {};
@@ -122,9 +122,9 @@ export const updateCustomer = async (req: Request, res: Response) => {
       changes: req.body,
     });
 
-    res.json(customer);
+    return success(res, customer);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -135,20 +135,17 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
     const { customer_id, type, amount, notes } = req.body;
 
     if (!customer_id || !type || amount === undefined || !notes || !notes.trim()) {
-      res.status(400).json({ error: 'customer_id, type, amount, and notes are required' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'customer_id, type, amount, and notes are required');
     }
 
     if (type !== 'payment' && type !== 'debt') {
-      res.status(400).json({ error: 'Type must be payment or debt' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Type must be payment or debt');
     }
 
     const customerIdInt = parseInt(customer_id);
     const amountFloat = parseFloat(amount);
 
     const transaction = await prisma.$transaction(async (tx: any) => {
-      // 1. Verify customer exists and belongs to company
       const customer = await tx.customer.findFirst({
         where: { id: customerIdInt, company_id: companyId },
       });
@@ -156,7 +153,6 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
         throw new Error('Customer not found');
       }
 
-      // 2. Calculate remaining balance and final notes
       const balanceDelta = type === 'payment' ? -amountFloat : amountFloat;
       const remainingBalance = customer.balance + balanceDelta;
       const internalNote = `[ملاحظة داخلية: الدين المتبقي: ${remainingBalance.toFixed(2)}]`;
@@ -172,14 +168,9 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
         },
       });
 
-      // 3. Update customer balance
       await tx.customer.update({
         where: { id: customerIdInt },
-        data: {
-          balance: {
-            increment: balanceDelta,
-          },
-        },
+        data: { balance: { increment: balanceDelta } },
       });
 
       return newTx;
@@ -191,9 +182,9 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
       amount: amountFloat,
     });
 
-    res.status(201).json(transaction);
+    return success(res, transaction, 201);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -202,17 +193,14 @@ export const getCustomerTransactions = async (req: Request, res: Response) => {
     const companyId = req.tenant!.company_id;
     const customerId = parseInt(req.params.id as string);
     if (isNaN(customerId)) {
-      res.status(400).json({ error: 'Invalid customer ID' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid customer ID');
     }
 
-    // Verify customer belongs to company
     const customer = await prisma.customer.findFirst({
       where: { id: customerId, company_id: companyId },
     });
     if (!customer) {
-      res.status(404).json({ error: 'Customer not found' });
-      return;
+      return errorResponse(res, 404, 'NOT_FOUND', 'Customer not found');
     }
 
     const transactions = await prisma.customerTransaction.findMany({
@@ -220,9 +208,9 @@ export const getCustomerTransactions = async (req: Request, res: Response) => {
       orderBy: { created_at: 'desc' },
     });
 
-    res.json(transactions);
+    return success(res, transactions);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -232,41 +220,33 @@ export const deleteCustomer = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
-      res.status(400).json({ error: 'Invalid customer ID' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid customer ID');
     }
 
-    // Ensure customer belongs to company
     const customer = await prisma.customer.findFirst({
       where: { id, company_id: companyId },
     });
     if (!customer) {
-      res.status(404).json({ error: 'Customer not found' });
-      return;
+      return errorResponse(res, 404, 'NOT_FOUND', 'Customer not found');
     }
 
     await prisma.$transaction(async (tx: any) => {
-      // 1. Delete all transactions of the customer
       await tx.customerTransaction.deleteMany({
         where: { customer_id: id, company_id: companyId },
       });
 
-      // 2. Disconnect customer from all sales records
       await tx.sale.updateMany({
         where: { customer_id: id, company_id: companyId },
         data: { customer_id: null },
       });
 
-      // 3. Delete customer
-      await tx.customer.delete({
-        where: { id },
-      });
+      await tx.customer.delete({ where: { id } });
     });
 
     await logUserActivity(companyId, username, 'DELETE_CUSTOMER', { id });
 
-    res.json({ message: 'Customer deleted successfully' });
+    return success(res, { message: 'Customer deleted successfully' });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };

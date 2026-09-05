@@ -8,6 +8,8 @@ import { createRefund } from '../controllers/refunds';
 import { authTokenMiddleware } from '../middleware/auth';
 import { tenantResolverMiddleware } from '../middleware/tenant';
 import { requireModule } from '../middleware/guards';
+import { requirePermission } from '../middleware/permission';
+import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
 
@@ -81,8 +83,8 @@ router.use(tenantResolverMiddleware);
  *       200:
  *         description: Success
  */
-router.post('/', requireModule('pos'), createSale);
-router.get('/', requireModule('pos'), getAllSales);
+router.post('/', requireModule('pos'), requirePermission(PERMISSIONS.POS_SALE), createSale);
+router.get('/', requireModule('pos'), requirePermission(PERMISSIONS.POS_SALE), getAllSales);
 
 /**
  * @swagger
@@ -100,7 +102,7 @@ router.get('/', requireModule('pos'), getAllSales);
  *         schema:
  *           type: string
  */
-router.get('/:id', requireModule('pos'), getSaleById);
+router.get('/:id', requireModule('pos'), requirePermission(PERMISSIONS.POS_SALE), getSaleById);
 
 /**
  * @swagger
@@ -138,6 +140,6 @@ router.get('/:id', requireModule('pos'), getSaleById);
  *       201:
  *         description: Success
  */
-router.post('/:id/refund', requireModule('refunds'), createRefund);
+router.post('/:id/refund', requireModule('refunds'), requirePermission(PERMISSIONS.REFUND_CREATE), createRefund);
 
 export default router;

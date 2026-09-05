@@ -1,6 +1,18 @@
 import { Request, Response } from 'express';
 import { prisma, logUserActivity, getUsername } from '../prisma';
 
+function success<T>(res: Response, data: T, status = 200) {
+  return res.status(status).json({ success: true, data });
+}
+
+function paginatedSuccess<T>(res: Response, data: T[], meta: { total: number; page: number; limit: number; totalPages: number }) {
+  return res.json({ success: true, data, meta });
+}
+
+function errorResponse(res: Response, status: number, code: string, message: string, details?: any) {
+  return res.status(status).json({ success: false, code, message, details });
+}
+
 export const getAllProducts = async (req: Request, res: Response) => {
   try {
     const companyId = req.tenant!.company_id;
@@ -8,13 +20,18 @@ export const getAllProducts = async (req: Request, res: Response) => {
     const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
     const search = req.query.search as string | undefined;
     const lowStock = req.query.lowStock === 'true';
+    const isActive = req.query.isActive;
     const page = req.query.page ? parseInt(req.query.page as string) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      company_id: companyId,
-    };
+    const where: any = { company_id: companyId };
+
+    if (isActive === 'true') {
+      where.is_active = true;
+    } else if (isActive === 'false') {
+      where.is_active = false;
+    }
 
     if (categoryId) {
       where.category_id = categoryId;
@@ -34,7 +51,6 @@ export const getAllProducts = async (req: Request, res: Response) => {
     let total = 0;
 
     if (lowStock) {
-      // Use raw SQL to handle field-to-field comparison for low stock threshold at the branch level
       let queryStr = `
         SELECT p.*
         FROM products p
@@ -43,6 +59,12 @@ export const getAllProducts = async (req: Request, res: Response) => {
       `;
       const queryParams: any[] = [companyId, branchId];
       let paramCount = 3;
+
+      if (isActive === 'true') {
+        queryStr += ` AND p.is_active = true`;
+      } else if (isActive === 'false') {
+        queryStr += ` AND p.is_active = false`;
+      }
 
       if (categoryId) {
         queryStr += ` AND p.category_id = $${paramCount++}`;
@@ -90,9 +112,7 @@ export const getAllProducts = async (req: Request, res: Response) => {
           where,
           include: {
             category: true,
-            product_stocks: {
-              where: { branch_id: branchId },
-            },
+            product_stocks: { where: { branch_id: branchId } },
           },
           orderBy: { name: 'asc' },
           skip,
@@ -115,15 +135,9 @@ export const getAllProducts = async (req: Request, res: Response) => {
 
     const totalPages = Math.ceil(total / limit);
 
-    res.json({
-      data: products,
-      total,
-      page,
-      limit,
-      totalPages,
-    });
+    return paginatedSuccess(res, products, { total, page, limit, totalPages });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -132,24 +146,22 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
     const companyId = req.tenant!.company_id;
     const branchId = req.tenant!.branch_id;
     const query = req.query.query as string;
+    const isActive = req.query.isActive;
     if (!query) {
-      res.status(400).json({ error: 'Search query is required' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Search query is required');
     }
+
+    const activeFilter = isActive === 'true' ? { is_active: true } : isActive === 'false' ? { is_active: false } : {};
 
     let products = await prisma.product.findMany({
       where: {
         company_id: companyId,
-        OR: [
-          { barcode: query },
-          { sku: query },
-        ],
+        ...activeFilter,
+        OR: [{ barcode: query }, { sku: query }],
       },
       include: {
         category: true,
-        product_stocks: {
-          where: { branch_id: branchId },
-        },
+        product_stocks: { where: { branch_id: branchId } },
       },
     });
 
@@ -157,6 +169,7 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
       products = await prisma.product.findMany({
         where: {
           company_id: companyId,
+          ...activeFilter,
           OR: [
             { name: { contains: query, mode: 'insensitive' } },
             { barcode: { contains: query, mode: 'insensitive' } },
@@ -166,9 +179,7 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
         },
         include: {
           category: true,
-          product_stocks: {
-            where: { branch_id: branchId },
-          },
+          product_stocks: { where: { branch_id: branchId } },
         },
         take: 10,
       });
@@ -184,9 +195,9 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
       };
     });
 
-    res.json(mappedProducts);
+    return success(res, mappedProducts);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -206,21 +217,20 @@ export const createProduct = async (req: Request, res: Response) => {
       sell_price,
       stock_qty,
       low_stock_threshold,
+      is_active,
       image_path,
     } = req.body;
 
-    if (!name) {
-      res.status(400).json({ error: 'Product name is required' });
-      return;
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Product name is required');
     }
 
-    // Wrap in transaction to initialize stocks for all branches of the company
     const product = await prisma.$transaction(async (tx) => {
       const prod = await tx.product.create({
         data: {
           company_id: companyId,
           branch_id: branchId,
-          name,
+          name: name.trim(),
           sku: sku || null,
           barcode: barcode || null,
           category_id: category_id ? parseInt(category_id) : null,
@@ -230,11 +240,11 @@ export const createProduct = async (req: Request, res: Response) => {
           sell_price: sell_price ? parseFloat(sell_price) : 0,
           stock_qty: stock_qty ? parseInt(stock_qty) : 0,
           low_stock_threshold: low_stock_threshold ? parseInt(low_stock_threshold) : 5,
+          is_active: is_active !== undefined ? Boolean(is_active) : true,
           image_path: image_path || null,
         },
       });
 
-      // Get all branches of company
       const branches = await tx.branch.findMany({
         where: { company_id: companyId },
       });
@@ -260,12 +270,9 @@ export const createProduct = async (req: Request, res: Response) => {
       sku: product.sku,
     });
 
-    res.status(201).json({
-      ...product,
-      stock_qty: stock_qty ? parseInt(stock_qty) : 0,
-    });
+    return success(res, { ...product, stock_qty: stock_qty ? parseInt(stock_qty) : 0 }, 201);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -276,34 +283,28 @@ export const updateProduct = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
-      res.status(400).json({ error: 'Invalid product ID' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid product ID');
     }
 
-    // Ensure product belongs to company
     const existing = await prisma.product.findFirst({
       where: { id, company_id: companyId },
     });
     if (!existing) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
+      return errorResponse(res, 404, 'NOT_FOUND', 'Product not found');
     }
 
     const updateData: any = {};
-    const fields = [
-      'name',
-      'sku',
-      'barcode',
-      'factory',
-      'description',
-      'image_path',
-    ];
+    const fields = ['name', 'sku', 'barcode', 'factory', 'description', 'image_path'];
 
     fields.forEach((field) => {
       if (req.body[field] !== undefined) {
         updateData[field] = req.body[field];
       }
     });
+
+    if (req.body.is_active !== undefined) {
+      updateData.is_active = Boolean(req.body.is_active);
+    }
 
     if (req.body.category_id !== undefined) {
       updateData.category_id = req.body.category_id ? parseInt(req.body.category_id) : null;
@@ -318,7 +319,6 @@ export const updateProduct = async (req: Request, res: Response) => {
       updateData.low_stock_threshold = req.body.low_stock_threshold ? parseInt(req.body.low_stock_threshold) : null;
     }
 
-    // Run in transaction to update core product and branch-specific stock levels
     const product = await prisma.$transaction(async (tx) => {
       const prod = await tx.product.update({
         where: { id },
@@ -367,13 +367,13 @@ export const updateProduct = async (req: Request, res: Response) => {
       changes: req.body,
     });
 
-    res.json({
+    return success(res, {
       ...product,
       stock_qty: activeStock ? activeStock.stock_qty : 0,
       low_stock_threshold: activeStock ? activeStock.low_stock_threshold : 5,
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -383,30 +383,26 @@ export const deleteProduct = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
-      res.status(400).json({ error: 'Invalid product ID' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid product ID');
     }
 
     const product = await prisma.product.findFirst({
       where: { id, company_id: companyId },
     });
     if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
+      return errorResponse(res, 404, 'NOT_FOUND', 'Product not found');
     }
 
-    await prisma.product.delete({
-      where: { id },
-    });
+    await prisma.product.delete({ where: { id } });
 
     await logUserActivity(companyId, username, 'DELETE_PRODUCT', {
       id: product.id,
       name: product.name,
     });
 
-    res.status(204).send();
+    return res.status(204).send();
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -419,21 +415,18 @@ export const adjustStock = async (req: Request, res: Response) => {
     const { delta } = req.body;
 
     if (isNaN(id)) {
-      res.status(400).json({ error: 'Invalid product ID' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid product ID');
     }
 
     if (delta === undefined || isNaN(parseInt(delta))) {
-      res.status(400).json({ error: 'Invalid stock delta' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid stock delta');
     }
 
     const product = await prisma.product.findFirst({
       where: { id, company_id: companyId },
     });
     if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
+      return errorResponse(res, 404, 'NOT_FOUND', 'Product not found');
     }
 
     const updatedStock = await prisma.productStock.upsert({
@@ -445,9 +438,7 @@ export const adjustStock = async (req: Request, res: Response) => {
         },
       },
       update: {
-        stock_qty: {
-          increment: parseInt(delta),
-        },
+        stock_qty: { increment: parseInt(delta) },
       },
       create: {
         company_id: companyId,
@@ -465,12 +456,12 @@ export const adjustStock = async (req: Request, res: Response) => {
       new_stock: updatedStock.stock_qty,
     });
 
-    res.json({
+    return success(res, {
       ...product,
       stock_qty: updatedStock.stock_qty,
       low_stock_threshold: updatedStock.low_stock_threshold,
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };

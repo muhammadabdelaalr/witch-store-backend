@@ -1,5 +1,7 @@
 # Backend, Database & APIs Documentation (ERP Store)
 
+> ⚠️ **DEPRECATION NOTICE**: This document describes the legacy local-only Electron + SQLite + IPC architecture. The current system uses an Express 5 + Prisma + PostgreSQL REST API (`src/server.ts`) and the renderer talks to it over HTTP. This file is kept for historical reference only and will be replaced by up-to-date architecture documentation.
+
 This document provides a comprehensive guide to the backend architecture, SQLite database schema, and Electron IPC (Inter-Process Communication) channels implemented in the **ERP Store (الساحرة)** application.
 
 ---

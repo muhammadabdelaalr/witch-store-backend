@@ -8,6 +8,8 @@ import {
 import { authTokenMiddleware } from '../middleware/auth';
 import { tenantResolverMiddleware } from '../middleware/tenant';
 import { requireModule } from '../middleware/guards';
+import { requirePermission } from '../middleware/permission';
+import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
 
@@ -59,8 +61,8 @@ router.use(requireModule('expenses'));
  *       200:
  *         description: Success
  */
-router.get('/', getAllExpenses);
-router.post('/', createExpense);
+router.get('/', requirePermission(PERMISSIONS.EXPENSE_READ), getAllExpenses);
+router.post('/', requirePermission(PERMISSIONS.EXPENSE_CREATE), createExpense);
 
 /**
  * @swagger
@@ -107,7 +109,7 @@ router.post('/', createExpense);
  *         schema:
  *           type: string
  */
-router.put('/:id', updateExpense);
-router.delete('/:id', deleteExpense);
+router.put('/:id', requirePermission(PERMISSIONS.EXPENSE_UPDATE), updateExpense);
+router.delete('/:id', requirePermission(PERMISSIONS.EXPENSE_DELETE), deleteExpense);
 
 export default router;

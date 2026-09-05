@@ -161,21 +161,45 @@ export const tenantResolverMiddleware = async (req: Request, res: Response, next
     // Resolve branch_id
     const branchIdHeader = req.headers['x-branch-id'];
     let branchId = branchIdHeader ? parseInt(branchIdHeader as string, 10) : undefined;
-    if (branchId) {
+    if (branchId && !isNaN(branchId)) {
       const branchExists = await prisma.branch.findFirst({
         where: { id: branchId, company_id: company.id }
       });
       if (!branchExists) {
-        branchId = undefined;
+        res.status(403).json({ error: 'BRANCH_NOT_FOUND', message: 'الفرع المحدد غير مسجل لهذه الشركة.' });
+        return;
       }
-    }
-    if (!branchId) {
+    } else {
       const mainBranch = await prisma.branch.findFirst({
         where: { company_id: company.id, is_main: true }
       }) || await prisma.branch.findFirst({
         where: { company_id: company.id }
       });
-      branchId = mainBranch?.id || 1;
+      if (!mainBranch) {
+        res.status(403).json({ error: 'BRANCH_REQUIRED', message: 'لا يوجد فرع مسجل لهذه الشركة.' });
+        return;
+      }
+      branchId = mainBranch.id;
+    }
+
+    // 5. Resolve authenticated user and permissions
+    const userIdHeader = req.headers['x-user-id'] as string;
+    let userContext: TenantContext['user'] | undefined;
+    if (userIdHeader) {
+      const userId = parseInt(userIdHeader, 10);
+      if (!isNaN(userId)) {
+        const user = await prisma.user.findFirst({
+          where: { id: userId, company_id: company.id },
+          select: {
+            id: true,
+            name: true,
+            role: { select: { id: true, key: true, name: true, permissions: true } },
+          },
+        });
+        if (user) {
+          userContext = user;
+        }
+      }
     }
 
     // Attach to Request
@@ -187,7 +211,8 @@ export const tenantResolverMiddleware = async (req: Request, res: Response, next
       device_id: device.device_id,
       branch_id: branchId,
       allowed_modules: allowedModules,
-      allowed_features: allowedFeatures
+      allowed_features: allowedFeatures,
+      user: userContext,
     };
 
     next();

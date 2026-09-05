@@ -2,13 +2,24 @@ const { PrismaClient } = require('./generated/prisma');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { Pool } = require('pg');
 const dotenv = require('dotenv');
-const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
 dotenv.config();
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
+async function hashPassword(password) {
+  return bcrypt.hash(password, 12);
 }
+
+const DEFAULT_ROLE_PERMISSIONS = {
+  owner: ['pos:sale','pos:cancel','pos:reprint','pos:hold','products:read','products:create','products:update','products:delete','categories:read','categories:create','categories:update','categories:delete','customers:read','customers:create','customers:update','customers:delete','customers:payment','suppliers:read','suppliers:create','suppliers:update','suppliers:delete','supplier_invoices:create','supplier_invoices:update','suppliers:payment','expenses:read','expenses:create','expenses:update','expenses:delete','reports:read','users:read','users:create','users:update','users:delete','refunds:create','inventory:read','inventory:adjust'],
+  branch_manager: ['pos:sale','pos:cancel','pos:reprint','pos:hold','products:read','products:create','products:update','categories:read','customers:read','customers:create','customers:update','customers:payment','suppliers:read','suppliers:create','suppliers:update','supplier_invoices:create','suppliers:payment','expenses:read','expenses:create','reports:read','users:read','users:create','users:update','refunds:create','inventory:read','inventory:adjust'],
+  cashier: ['pos:sale','pos:hold','products:read','categories:read','customers:read','customers:create','customers:payment','expenses:read','expenses:create'],
+  sales: ['pos:sale','pos:hold','products:read','customers:read','customers:create','customers:update','customers:payment','reports:read'],
+  inventory: ['products:read','products:create','products:update','categories:read','categories:create','suppliers:read','supplier_invoices:create','inventory:read','inventory:adjust'],
+  purchasing: ['suppliers:read','suppliers:create','suppliers:update','supplier_invoices:create','supplier_invoices:update','suppliers:payment','products:read'],
+  accountant: ['reports:read','expenses:read','expenses:create','customers:read','customers:payment','suppliers:read','suppliers:payment'],
+  viewer: ['products:read','customers:read','suppliers:read','reports:read','expenses:read'],
+};
 
 const MODULES = [
   { key: 'dashboard', name: 'لوحة التحكم', description: 'لوحة تحليلات سريعة ومؤشرات الأداء للمتجر' },
@@ -125,7 +136,23 @@ async function seed() {
   }
   console.log(`Seeded payment providers.`);
 
-  // 5. Seed Default Plan containing all modules and features
+  // 5. Seed Default Roles
+  console.log('Seeding Roles...');
+  for (const [key, permissions] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+    await prisma.role.upsert({
+      where: { key },
+      update: { permissions },
+      create: {
+        key,
+        name: key,
+        permissions,
+        is_active: true,
+      },
+    });
+  }
+  console.log('Seeded Roles.');
+
+  // 6. Seed Default Plan containing all modules and features
   console.log('Creating Default Plan...');
   let plan = await prisma.plan.findFirst({ where: { name: 'الباقة الشاملة' } });
   if (!plan) {
@@ -200,11 +227,11 @@ async function seed() {
   }
   console.log('Seeded License module and feature mappings.');
 
-  // 7. Seed Default OwnerAdminUser (Email: owner@store.com, Password: Aa152026@)
+  // 8. Seed Default OwnerAdminUser (Email: owner@store.com, Password: Aa152026@)
   console.log('Seeding Default Owner Admin User...');
   const ownerEmail = 'owner@store.com';
-  const ownerPassHash = hashPassword('Aa152026@');
-  
+  const ownerPassHash = await hashPassword('Aa152026@');
+
   await prisma.ownerAdminUser.upsert({
     where: { email: ownerEmail },
     update: { password_hash: ownerPassHash },
@@ -265,6 +292,39 @@ async function seed() {
     await prisma.$executeRawUnsafe('UPDATE supplier_invoice_history SET company_id = 1 WHERE company_id IS NULL');
   } catch (rawErr) {
     console.log('Skipping raw SQL updates as tables are already migrated or empty:', rawErr.message);
+  }
+
+  // 10. Hash any remaining plaintext passwords
+  console.log('Hashing plaintext user passwords...');
+  try {
+    const allUsers = await prisma.user.findMany({
+      select: { id: true, name: true, password: true }
+    });
+    let hashedCount = 0;
+    for (const user of allUsers) {
+      const currentPassword = user.password;
+      if (!currentPassword || currentPassword.startsWith('$2')) continue; // already bcrypt
+      const newHash = await hashPassword(currentPassword);
+      await prisma.user.update({ where: { id: user.id }, data: { password: newHash } });
+      hashedCount++;
+      console.log(`  Hashed password for user #${user.id} (${user.name})`);
+    }
+    console.log(`Hashed ${hashedCount} plaintext passwords.`);
+  } catch (pwdErr) {
+    console.log('Skipping password hashing:', pwdErr.message);
+  }
+
+  // 11. Assign default roles to existing users that don't have one
+  console.log('Assigning default roles to existing users...');
+  try {
+    const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
+    const cashierRole = await prisma.role.findUnique({ where: { key: 'cashier' } });
+    if (ownerRole && cashierRole) {
+      await prisma.$executeRawUnsafe(`UPDATE "users" SET "role_id" = ${ownerRole.id} WHERE "role_id" IS NULL AND "isAdmin" = true`);
+      await prisma.$executeRawUnsafe(`UPDATE "users" SET "role_id" = ${cashierRole.id} WHERE "role_id" IS NULL AND "isAdmin" = false`);
+    }
+  } catch (roleErr) {
+    console.log('Skipping role assignment:', roleErr.message);
   }
 
   console.log('=== Seed Process Completed Successfully! ===');

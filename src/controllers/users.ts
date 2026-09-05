@@ -1,5 +1,33 @@
 import { Request, Response } from 'express';
 import { prisma, logUserActivity, getUsername } from '../prisma';
+import { hashPassword, verifyPassword } from '../utils/password';
+
+async function resolveDefaultRole(isAdmin: boolean): Promise<number | undefined> {
+  const key = isAdmin ? 'owner' : 'cashier';
+  const role = await prisma.role.findUnique({ where: { key } });
+  return role?.id;
+}
+
+const USER_PUBLIC_SELECT = {
+  id: true,
+  company_id: true,
+  branch_id: true,
+  role_id: true,
+  name: true,
+  email: true,
+  phone: true,
+  isAdmin: true,
+  logs: true,
+  registrationDate: true,
+  role: {
+    select: {
+      id: true,
+      key: true,
+      name: true,
+      permissions: true,
+    },
+  },
+};
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -25,6 +53,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
+        select: USER_PUBLIC_SELECT,
         orderBy: { name: 'asc' },
         skip,
         take: limit,
@@ -35,14 +64,12 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const totalPages = Math.ceil(total / limit);
 
     res.json({
+      success: true,
       data: users,
-      total,
-      page,
-      limit,
-      totalPages,
+      meta: { total, page, limit, totalPages },
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, code: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
 };
 
@@ -51,12 +78,18 @@ export const createUser = async (req: Request, res: Response) => {
     const companyId = req.tenant!.company_id;
     const branchId = req.tenant!.branch_id;
     const username = getUsername(req);
-    const { name, email, password, phone, isAdmin } = req.body;
+    const { name, email, password, phone, isAdmin, role_id } = req.body;
 
     if (!name || !password || !phone) {
-      res.status(400).json({ error: 'Username (name), password, and phone are required' });
+      res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'Username (name), password, and phone are required' });
       return;
     }
+
+    const passwordHash = await hashPassword(password);
+    const isAdminFlag = isAdmin === true || isAdmin === 'true';
+    const resolvedRoleId = role_id
+      ? parseInt(role_id, 10)
+      : await resolveDefaultRole(isAdminFlag);
 
     const user = await prisma.user.create({
       data: {
@@ -64,18 +97,20 @@ export const createUser = async (req: Request, res: Response) => {
         branch_id: branchId,
         name,
         email: email || null,
-        password,
+        password: passwordHash,
         phone,
-        isAdmin: isAdmin === true || isAdmin === 'true',
+        isAdmin: isAdminFlag,
+        role_id: resolvedRoleId,
         logs: '[]',
       },
+      select: USER_PUBLIC_SELECT,
     });
 
     await logUserActivity(companyId, username, 'CREATE_USER', { name: user.name });
 
-    res.status(201).json(user);
+    res.status(201).json({ success: true, data: user });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, code: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
 };
 
@@ -85,31 +120,40 @@ export const updateUser = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
-      res.status(400).json({ error: 'Invalid user ID' });
+      res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'Invalid user ID' });
       return;
     }
 
-    // Ensure user belongs to company
     const existing = await prisma.user.findFirst({
       where: { id, company_id: companyId },
     });
     if (!existing) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'User not found' });
       return;
     }
 
-    const { name, email, password, phone, isAdmin } = req.body;
+    const { name, email, password, phone, isAdmin, role_id } = req.body;
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
-    if (password !== undefined) updateData.password = password;
+    if (password !== undefined && password !== '') updateData.password = await hashPassword(password);
     if (phone !== undefined) updateData.phone = phone;
-    if (isAdmin !== undefined) updateData.isAdmin = isAdmin === true || isAdmin === 'true';
+
+    let resolvedRoleId: number | null | undefined = undefined;
+    if (role_id !== undefined) {
+      resolvedRoleId = role_id ? parseInt(role_id, 10) : null;
+    } else if (isAdmin !== undefined) {
+      const isAdminFlag = isAdmin === true || isAdmin === 'true';
+      updateData.isAdmin = isAdminFlag;
+      resolvedRoleId = await resolveDefaultRole(isAdminFlag);
+    }
+    if (resolvedRoleId !== undefined) updateData.role_id = resolvedRoleId;
 
     const user = await prisma.user.update({
       where: { id },
       data: updateData,
+      select: USER_PUBLIC_SELECT,
     });
 
     if (user.isAdmin && email !== undefined && existing.email !== email) {
@@ -119,11 +163,11 @@ export const updateUser = async (req: Request, res: Response) => {
       });
     }
 
-    await logUserActivity(companyId, username, 'UPDATE_USER', { id: user.id, name: user.name, changes: req.body });
+    await logUserActivity(companyId, username, 'UPDATE_USER', { id: user.id, name: user.name, changes: Object.keys(updateData) });
 
-    res.json(user);
+    res.json({ success: true, data: user });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, code: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
 };
 
@@ -133,7 +177,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
-      res.status(400).json({ error: 'Invalid user ID' });
+      res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'Invalid user ID' });
       return;
     }
 
@@ -142,7 +186,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'User not found' });
       return;
     }
 
@@ -154,7 +198,7 @@ export const deleteUser = async (req: Request, res: Response) => {
 
     res.status(204).send();
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, code: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
 };
 
@@ -164,23 +208,20 @@ export const loginUser = async (req: Request, res: Response) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      res.status(400).json({ error: 'Username and password are required' });
+      res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'Username and password are required' });
       return;
     }
 
     const user = await prisma.user.findFirst({
       where: {
         company_id: companyId,
-        password: password,
-        OR: [
-          { name: username },
-          { email: username }
-        ]
+        OR: [{ name: username }, { email: username }],
       },
+      include: { role: true },
     });
 
-    if (!user) {
-      res.status(401).json({ error: 'Invalid credentials' });
+    if (!user || !(await verifyPassword(password, user.password))) {
+      res.status(401).json({ success: false, code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
       return;
     }
 
@@ -192,14 +233,13 @@ export const loginUser = async (req: Request, res: Response) => {
 
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: {
-        logs: JSON.stringify(logs),
-      },
+      data: { logs: JSON.stringify(logs) },
+      select: USER_PUBLIC_SELECT,
     });
 
-    res.json(updatedUser);
+    res.json({ success: true, data: updatedUser });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, code: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
 };
 
@@ -209,7 +249,7 @@ export const syncActiveUser = async (req: Request, res: Response) => {
     const { id, name } = req.body;
 
     if (!id || !name) {
-      res.status(400).json({ error: 'User id and name are required' });
+      res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'User id and name are required' });
       return;
     }
 
@@ -219,16 +259,17 @@ export const syncActiveUser = async (req: Request, res: Response) => {
         id: parseInt(id),
         name,
       },
+      select: USER_PUBLIC_SELECT,
     });
 
     if (!user) {
-      res.status(404).json({ error: 'User session not found' });
+      res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'User session not found' });
       return;
     }
 
-    res.json(user);
+    res.json({ success: true, data: user });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, code: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
 };
 
@@ -248,14 +289,12 @@ export const logoutUser = async (req: Request, res: Response) => {
         });
         await prisma.user.update({
           where: { id: user.id },
-          data: {
-            logs: JSON.stringify(logs),
-          },
+          data: { logs: JSON.stringify(logs) },
         });
       }
     }
     res.status(200).json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, code: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
 };

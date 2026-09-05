@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { signLicenseSnapshot, LicenseSnapshot } from '../utils/licenseSigner';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
+import { hashPassword } from '../utils/password';
+import { hashRefreshToken } from '../utils/token';
 import crypto from 'crypto';
 
 // Helper to compute modules and features for a license
@@ -174,10 +176,10 @@ export const activateLicense = async (req: Request, res: Response) => {
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    // Save refresh token to database
+    // Save refresh token hash to database
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token_hash: hashRefreshToken(refreshToken),
         user_name: 'DeviceActivation',
         device_id: deviceId,
         expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 Days
@@ -197,6 +199,8 @@ export const activateLicense = async (req: Request, res: Response) => {
       });
 
       const branchId = defaultBranch?.id || null;
+      const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
+      const defaultPasswordHash = await hashPassword('admin');
 
       // Ensure 'Administrator' exists
       await prisma.user.upsert({
@@ -212,9 +216,10 @@ export const activateLicense = async (req: Request, res: Response) => {
         create: {
           company_id: license.company_id,
           branch_id: branchId,
+          role_id: ownerRole?.id || null,
           name: 'Administrator',
           phone: 'admin',
-          password: 'admin',
+          password: defaultPasswordHash,
           isAdmin: true,
           logs: '[]',
         }
@@ -234,9 +239,10 @@ export const activateLicense = async (req: Request, res: Response) => {
         create: {
           company_id: license.company_id,
           branch_id: branchId,
+          role_id: ownerRole?.id || null,
           name: 'admin',
           phone: 'admin',
-          password: 'admin',
+          password: defaultPasswordHash,
           isAdmin: true,
           logs: '[]',
         }
@@ -337,7 +343,7 @@ export const validateLicense = async (req: Request, res: Response) => {
   }
 };
 
-// 3. Refresh Token
+// 3. Refresh Token (rotation)
 export const refreshLicenseToken = async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
@@ -348,12 +354,14 @@ export const refreshLicenseToken = async (req: Request, res: Response) => {
       return;
     }
 
-    // A. Verify token signature & status in DB
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    // A. Verify token hash & status in DB
     const dbToken = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken }
+      where: { token_hash: tokenHash }
     });
 
-    if (!dbToken || dbToken.device_id !== deviceId || dbToken.expires_at < new Date()) {
+    if (!dbToken || dbToken.device_id !== deviceId || dbToken.revoked || dbToken.expires_at < new Date()) {
       res.status(401).json({ error: 'TOKEN_INVALID', message: 'توكن التجديد منتهي أو غير صالح.' });
       return;
     }
@@ -391,7 +399,7 @@ export const refreshLicenseToken = async (req: Request, res: Response) => {
       return;
     }
 
-    // D. Generate New Access Token
+    // D. Rotate: issue new pair, revoke/delete old refresh token
     const payload = {
       company_id: decoded.company_id,
       license_id: decoded.license_id,
@@ -400,10 +408,23 @@ export const refreshLicenseToken = async (req: Request, res: Response) => {
     };
 
     const newAccessToken = generateAccessToken(payload);
+    const newRefreshToken = generateRefreshToken(payload);
+
+    await prisma.$transaction([
+      prisma.refreshToken.delete({ where: { id: dbToken.id } }),
+      prisma.refreshToken.create({
+        data: {
+          token_hash: hashRefreshToken(newRefreshToken),
+          user_name: 'DeviceActivation',
+          device_id: deviceId,
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        }
+      })
+    ]);
 
     res.json({
       accessToken: newAccessToken,
-      refreshToken
+      refreshToken: newRefreshToken
     });
   } catch (error: any) {
     res.status(401).json({ error: 'TOKEN_INVALID', message: 'فشل تجديد التوكن.' });

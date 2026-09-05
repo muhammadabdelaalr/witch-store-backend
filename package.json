@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node src/server.ts",
+    "dev": "ts-node src/server.ts --open",
     "build": "tsc",
+    "postbuild": "rm -rf dist/generated/prisma && cp -r src/generated/prisma dist/generated/prisma",
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "prisma generate"

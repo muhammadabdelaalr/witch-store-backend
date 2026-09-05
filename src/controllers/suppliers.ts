@@ -1,6 +1,18 @@
 import { Request, Response } from 'express';
 import { prisma, logUserActivity, getUsername } from '../prisma';
 
+function success<T>(res: Response, data: T, status = 200) {
+  return res.status(status).json({ success: true, data });
+}
+
+function paginatedSuccess<T>(res: Response, data: T[], meta: { total: number; page: number; limit: number; totalPages: number }) {
+  return res.json({ success: true, data, meta });
+}
+
+function errorResponse(res: Response, status: number, code: string, message: string, details?: any) {
+  return res.status(status).json({ success: false, code, message, details });
+}
+
 export const getAllSuppliers = async (req: Request, res: Response) => {
   try {
     const companyId = req.tenant!.company_id;
@@ -9,9 +21,7 @@ export const getAllSuppliers = async (req: Request, res: Response) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      company_id: companyId,
-    };
+    const where: any = { company_id: companyId };
 
     if (search) {
       where.OR = [
@@ -34,15 +44,9 @@ export const getAllSuppliers = async (req: Request, res: Response) => {
 
     const totalPages = Math.ceil(total / limit);
 
-    res.json({
-      data: suppliers,
-      total,
-      page,
-      limit,
-      totalPages,
-    });
+    return paginatedSuccess(res, suppliers, { total, page, limit, totalPages });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -52,15 +56,14 @@ export const createSupplier = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const { name, phone, email, address, balance } = req.body;
 
-    if (!name) {
-      res.status(400).json({ error: 'Supplier name is required' });
-      return;
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Supplier name is required');
     }
 
     const supplier = await prisma.supplier.create({
       data: {
         company_id: companyId,
-        name,
+        name: name.trim(),
         phone: phone || null,
         email: email || null,
         address: address || null,
@@ -73,9 +76,9 @@ export const createSupplier = async (req: Request, res: Response) => {
       name: supplier.name,
     });
 
-    res.status(201).json(supplier);
+    return success(res, supplier, 201);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -85,17 +88,14 @@ export const updateSupplier = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
-      res.status(400).json({ error: 'Invalid supplier ID' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid supplier ID');
     }
 
-    // Ensure supplier belongs to company
     const existing = await prisma.supplier.findFirst({
       where: { id, company_id: companyId },
     });
     if (!existing) {
-      res.status(404).json({ error: 'Supplier not found' });
-      return;
+      return errorResponse(res, 404, 'NOT_FOUND', 'Supplier not found');
     }
 
     const updateData: any = {};
@@ -122,9 +122,9 @@ export const updateSupplier = async (req: Request, res: Response) => {
       changes: req.body,
     });
 
-    res.json(supplier);
+    return success(res, supplier);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -135,18 +135,15 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
     const { supplier_id, type, amount, notes, date, seller_name, invoice_id } = req.body;
 
     if (!supplier_id || !type || amount === undefined) {
-      res.status(400).json({ error: 'supplier_id, type, and amount are required' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'supplier_id, type, and amount are required');
     }
 
     if (!notes || notes.trim() === '') {
-      res.status(400).json({ error: 'Notes are required for all supplier transactions' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Notes are required for all supplier transactions');
     }
 
     if (type !== 'payment' && type !== 'purchase') {
-      res.status(400).json({ error: 'Type must be payment or purchase' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Type must be payment or purchase');
     }
 
     const supplierIdInt = parseInt(supplier_id);
@@ -154,7 +151,6 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
     const invoiceIdInt = invoice_id ? parseInt(invoice_id) : undefined;
 
     const transaction = await prisma.$transaction(async (tx: any) => {
-      // 1. Verify supplier exists and belongs to company
       const supplier = await tx.supplier.findFirst({
         where: { id: supplierIdInt, company_id: companyId },
       });
@@ -162,7 +158,6 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
         throw new Error('Supplier not found');
       }
 
-      // If invoice_id is provided, verify it exists and belongs to this supplier & company
       let invoice = null;
       if (invoiceIdInt) {
         invoice = await tx.supplierInvoice.findFirst({
@@ -173,7 +168,6 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
         }
       }
 
-      // 2. Create supplier transaction
       const newTx = await tx.supplierTransaction.create({
         data: {
           company_id: companyId,
@@ -187,34 +181,22 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
         },
       });
 
-      // 3. Update supplier balance
       const balanceDelta = type === 'payment' ? -amountFloat : amountFloat;
-
       await tx.supplier.update({
         where: { id: supplierIdInt },
-        data: {
-          balance: {
-            increment: balanceDelta,
-          },
-        },
+        data: { balance: { increment: balanceDelta } },
       });
 
-      // 4. If linked to an invoice and is a payment, update the invoice's amount_paid
       if (invoice && type === 'payment') {
         const updatedInvoice = await tx.supplierInvoice.update({
           where: { id: invoiceIdInt },
-          data: {
-            amount_paid: {
-              increment: amountFloat,
-            },
-          },
+          data: { amount_paid: { increment: amountFloat } },
         });
 
-        // Create a history log entry for the invoice
         await tx.supplierInvoiceHistory.create({
           data: {
             company_id: companyId,
-            invoice_id: invoiceIdInt!,
+            invoice_id: invoiceIdInt,
             seller_name: seller_name || 'سيستم',
             action: 'edit',
             changes: `تسجيل سداد بقيمة ${amountFloat} ج.م - المدفوع الجديد: ${updatedInvoice.amount_paid} ج.م | [ملاحظة: ${notes.trim()}]`,
@@ -233,9 +215,9 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
       invoice_id: invoiceIdInt,
     });
 
-    res.status(201).json(transaction);
+    return success(res, transaction, 201);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };
 
@@ -244,17 +226,14 @@ export const getSupplierTransactions = async (req: Request, res: Response) => {
     const companyId = req.tenant!.company_id;
     const supplierId = parseInt(req.params.id as string);
     if (isNaN(supplierId)) {
-      res.status(400).json({ error: 'Invalid supplier ID' });
-      return;
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid supplier ID');
     }
 
-    // Verify supplier belongs to company
     const supplier = await prisma.supplier.findFirst({
       where: { id: supplierId, company_id: companyId },
     });
     if (!supplier) {
-      res.status(404).json({ error: 'Supplier not found' });
-      return;
+      return errorResponse(res, 404, 'NOT_FOUND', 'Supplier not found');
     }
 
     const transactions = await prisma.supplierTransaction.findMany({
@@ -262,8 +241,8 @@ export const getSupplierTransactions = async (req: Request, res: Response) => {
       orderBy: { created_at: 'desc' },
     });
 
-    res.json(transactions);
+    return success(res, transactions);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', error.message);
   }
 };

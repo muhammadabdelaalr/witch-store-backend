@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   ownerLogin,
+  ownerRefreshToken,
   getCompanies,
   createCompany,
   updateCompany,
@@ -45,6 +46,8 @@ router.post(
   rateLimitMiddleware(15 * 60 * 1000, 15), // 15 mins, 15 attempts max
   ownerLogin
 );
+
+router.post('/auth/refresh-token', ownerRefreshToken);
 
 // Apply Owner Authentication middleware to all subsequent routes
 router.use(ownerAuthMiddleware);

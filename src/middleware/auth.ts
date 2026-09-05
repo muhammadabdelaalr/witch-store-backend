@@ -11,6 +11,16 @@ export interface TenantContext {
   branch_id: number;
   allowed_modules: string[];
   allowed_features: string[];
+  user?: {
+    id: number;
+    name: string;
+    role: {
+      id: number;
+      key: string;
+      name: string;
+      permissions: string[];
+    } | null;
+  };
 }
 
 export interface OwnerContext {

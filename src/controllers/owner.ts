@@ -1,11 +1,12 @@
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
-import crypto from 'crypto';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
+import { hashPassword, verifyPassword } from '../utils/password';
+import { hashRefreshToken } from '../utils/token';
 
-// Helper to hash passwords using SHA-256 (same as seed script)
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
+function hashOwnerPassword(password: string): Promise<string> {
+  return hashPassword(password);
 }
 
 // Helper for Owner Audit Logging
@@ -44,7 +45,7 @@ export const ownerLogin = async (req: Request, res: Response) => {
       where: { email },
     });
 
-    if (!owner || owner.password_hash !== hashPassword(password)) {
+    if (!owner || !(await verifyPassword(password, owner.password_hash))) {
       res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
       return;
     }
@@ -68,10 +69,10 @@ export const ownerLogin = async (req: Request, res: Response) => {
       device_id: '',
     });
 
-    // Save refresh token to database
+    // Save refresh token hash to database
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token_hash: hashRefreshToken(refreshToken),
         user_name: owner.name,
         device_id: 'owner-portal',
         expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 Days
@@ -92,6 +93,61 @@ export const ownerLogin = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
+  }
+};
+
+// 1.1 Owner Refresh Token (rotation)
+export const ownerRefreshToken = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      res.status(400).json({ error: 'INVALID_TOKEN', message: 'Refresh token مطلوب.' });
+      return;
+    }
+
+    const tokenHash = hashRefreshToken(refreshToken);
+    const storedToken = await prisma.refreshToken.findUnique({
+      where: { token_hash: tokenHash },
+    });
+
+    if (!storedToken || storedToken.revoked || storedToken.expires_at < new Date() || storedToken.device_id !== 'owner-portal') {
+      res.status(401).json({ error: 'TOKEN_EXPIRED', message: 'انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.' });
+      return;
+    }
+
+    const payload = verifyRefreshToken(refreshToken);
+    const accessToken = generateAccessToken({
+      user_id: payload.user_id,
+      email: payload.email,
+      role: payload.role as 'owner',
+      company_id: 0,
+      license_id: 0,
+      device_id: '',
+    });
+    const newRefreshToken = generateRefreshToken({
+      user_id: payload.user_id,
+      email: payload.email,
+      role: payload.role,
+      company_id: 0,
+      license_id: 0,
+      device_id: '',
+    });
+
+    await prisma.$transaction([
+      prisma.refreshToken.delete({ where: { id: storedToken.id } }),
+      prisma.refreshToken.create({
+        data: {
+          token_hash: hashRefreshToken(newRefreshToken),
+          user_name: storedToken.user_name,
+          device_id: 'owner-portal',
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        }
+      })
+    ]);
+
+    res.json({ accessToken, refreshToken: newRefreshToken });
+  } catch (error: any) {
+    res.status(401).json({ error: 'TOKEN_INVALID', message: 'توكن التحقق غير صالح.' });
   }
 };
 
@@ -173,7 +229,7 @@ export const getCompanies = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
 
-    const [data, total] = await Promise.all([
+    const [data, total, totalBranches, totalUsers, totalProducts] = await Promise.all([
       prisma.company.findMany({
         include: {
           _count: {
@@ -181,6 +237,8 @@ export const getCompanies = async (req: Request, res: Response) => {
               branches: true,
               licenses: true,
               devices: true,
+              users: true,
+              products: true,
             },
           },
           users: {
@@ -191,7 +249,6 @@ export const getCompanies = async (req: Request, res: Response) => {
               email: true,
               phone: true,
               isAdmin: true,
-              password: true,
             },
           },
         },
@@ -200,11 +257,20 @@ export const getCompanies = async (req: Request, res: Response) => {
         take: limit,
       }),
       prisma.company.count(),
+      prisma.branch.count(),
+      prisma.user.count(),
+      prisma.product.count(),
     ]);
-    
+
     res.json({
       data,
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) }
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      totals: {
+        companies: total,
+        branches: totalBranches,
+        users: totalUsers,
+        products: totalProducts,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
@@ -249,6 +315,9 @@ export const createCompany = async (req: Request, res: Response) => {
       }
     }
 
+    const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
+    const adminPasswordHash = await hashPassword(password);
+
     // Create Company, default Branch, and Admin User inside a transaction
     const result = await prisma.$transaction(async (tx) => {
       const newCompany = await tx.company.create({
@@ -275,9 +344,10 @@ export const createCompany = async (req: Request, res: Response) => {
         data: {
           company_id: newCompany.id,
           branch_id: defaultBranch.id,
+          role_id: ownerRole?.id || null,
           name: email.trim(),
           email: email.trim(),
-          password: password,
+          password: adminPasswordHash,
           phone: phone ? phone.trim() : '0000000000',
           isAdmin: true,
           logs: '[]',

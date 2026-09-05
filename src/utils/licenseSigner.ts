@@ -1,6 +1,14 @@
 import crypto from 'crypto';
 
-const SIGNING_SECRET = process.env.LICENSE_SIGNING_SECRET || 'witch-store-secret-key-2026-secure-hmac';
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+const SIGNING_SECRET = requireEnv('LICENSE_SIGNING_SECRET');
 
 export interface LicenseSnapshot {
   license_key_hash: string;
@@ -23,7 +31,7 @@ export function signLicenseSnapshot(snapshot: LicenseSnapshot): string {
       obj[key] = (snapshot as any)[key];
       return obj;
     }, {});
-  
+
   const serialized = JSON.stringify(orderedSnapshot);
   return crypto.createHmac('sha256', SIGNING_SECRET).update(serialized).digest('hex');
 }

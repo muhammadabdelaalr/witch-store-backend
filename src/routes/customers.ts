@@ -10,6 +10,8 @@ import {
 import { authTokenMiddleware } from '../middleware/auth';
 import { tenantResolverMiddleware } from '../middleware/tenant';
 import { requireModule } from '../middleware/guards';
+import { requirePermission } from '../middleware/permission';
+import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
 
@@ -57,8 +59,8 @@ router.use(requireModule('customers'));
  *       200:
  *         description: Success
  */
-router.get('/', getAllCustomers);
-router.post('/', createCustomer);
+router.get('/', requirePermission(PERMISSIONS.CUSTOMER_READ), getAllCustomers);
+router.post('/', requirePermission(PERMISSIONS.CUSTOMER_CREATE), createCustomer);
 
 /**
  * @swagger
@@ -91,8 +93,8 @@ router.post('/', createCustomer);
  *         schema:
  *           type: string
  */
-router.put('/:id', updateCustomer);
-router.delete('/:id', deleteCustomer);
+router.put('/:id', requirePermission(PERMISSIONS.CUSTOMER_UPDATE), updateCustomer);
+router.delete('/:id', requirePermission(PERMISSIONS.CUSTOMER_DELETE), deleteCustomer);
 
 /**
  * @swagger
@@ -124,7 +126,7 @@ router.delete('/:id', deleteCustomer);
  *       200:
  *         description: Success
  */
-router.post('/transaction', addCustomerTransaction);
+router.post('/transaction', requirePermission(PERMISSIONS.CUSTOMER_PAYMENT), addCustomerTransaction);
 
 /**
  * @swagger
@@ -142,6 +144,6 @@ router.post('/transaction', addCustomerTransaction);
  *         schema:
  *           type: string
  */
-router.get('/:id/transactions', getCustomerTransactions);
+router.get('/:id/transactions', requirePermission(PERMISSIONS.CUSTOMER_READ), getCustomerTransactions);
 
 export default router;

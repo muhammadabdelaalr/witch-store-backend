@@ -1,7 +1,15 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'witch-store-jwt-secret-key-2026-default-fallback';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'witch-store-jwt-refresh-secret-key-2026';
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+const JWT_SECRET = requireEnv('JWT_SECRET');
+const JWT_REFRESH_SECRET = requireEnv('JWT_REFRESH_SECRET');
 
 export interface TokenPayload {
   user_id?: number;
