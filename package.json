@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "ts-node src/server.ts --open",
     "build": "tsc",
-    "postbuild": "rm -rf dist/generated/prisma && cp -r src/generated/prisma dist/generated/prisma",
+    "postbuild": "node -e \"fs.rmSync('dist/generated/prisma', { recursive: true, force: true }); fs.cpSync('src/generated/prisma', 'dist/generated/prisma', { recursive: true });\"",
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "prisma generate"

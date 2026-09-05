@@ -1,371 +1,157 @@
 import { Request, Response } from 'express';
-import { prisma } from '../prisma';
+import * as saleService from '../services/sale.service';
+import { SaleError } from '../services/sale.service';
+
+function handleSaleError(res: Response, error: unknown) {
+  if (error instanceof SaleError) {
+    res.status(error.status).json({
+      success: false,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+    return;
+  }
+  const message = error instanceof Error ? error.message : 'Internal server error';
+  res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message });
+}
+
+function parseParamId(param: unknown): number {
+  const str = Array.isArray(param) ? param[0] : String(param || '');
+  return parseInt(str, 10);
+}
 
 export const createSale = async (req: Request, res: Response) => {
   try {
-    const companyId = req.tenant!.company_id;
-    const branchId = req.tenant!.branch_id;
-    const {
-      customer_id,
-      discount = 0,
-      tax = 0,
-      amount_paid,
-      payment_method,
-      notes,
-      seller_name,
-      customer_name,
-      items,
-      sale_type = 'retail',
-    } = req.body;
+    const tenant = req.tenant!;
+    const idempotencyHeader = req.headers['idempotency-key'] as string;
+    const bodyData = {
+      ...req.body,
+      idempotency_key: req.body.idempotency_key || idempotencyHeader,
+    };
+    const sale = await saleService.createSale(bodyData, tenant);
+    res.status(201).json(sale);
+  } catch (error) {
+    handleSaleError(res, error);
+  }
+};
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'Sale must contain at least one item' });
-      return;
-    }
+export const holdSale = async (req: Request, res: Response) => {
+  try {
+    const tenant = req.tenant!;
+    const sale = await saleService.holdSale(req.body, tenant);
+    res.status(201).json(sale);
+  } catch (error) {
+    handleSaleError(res, error);
+  }
+};
 
-    if (amount_paid === undefined || isNaN(parseFloat(amount_paid))) {
-      res.status(400).json({ error: 'Valid amount_paid is required' });
-      return;
-    }
-
-    if (!payment_method) {
-      res.status(400).json({ error: 'Payment method is required' });
-      return;
-    }
-
-    const amountPaidFloat = parseFloat(amount_paid);
-    const discountFloat = parseFloat(discount);
-    const taxFloat = parseFloat(tax);
-    const customerIdInt = customer_id ? parseInt(customer_id) : null;
-
-    // Start Prisma ACID Transaction
-    const sale = await prisma.$transaction(async (tx: any) => {
-      let subtotal = 0;
-      const verifiedItems = [];
-
-      // 1. Validate stock availability and calculate prices
-      for (const item of items) {
-        if (!item.product_id || !item.qty || isNaN(parseInt(item.qty))) {
-          throw new Error('Each item must have a product_id and a valid qty');
-        }
-
-        const productIdInt = parseInt(item.product_id);
-        const qtyInt = parseInt(item.qty);
-
-        if (qtyInt <= 0) {
-          throw new Error('Quantity must be greater than zero');
-        }
-
-        const product = await tx.product.findFirst({
-          where: { id: productIdInt, company_id: companyId },
-        });
-
-        if (!product) {
-          throw new Error(`Product with ID ${productIdInt} not found`);
-        }
-
-        // Check stock levels at branch level
-        const pStock = await tx.productStock.findUnique({
-          where: {
-            company_id_branch_id_product_id: {
-              company_id: companyId,
-              branch_id: branchId,
-              product_id: productIdInt,
-            },
-          },
-        });
-
-        const availableQty = pStock ? pStock.stock_qty : 0;
-
-        if (availableQty < qtyInt) {
-          throw new Error(
-            `الكمية المتاحة في المخزن غير كافية للمنتج "${product.name}". المطلوبة: ${qtyInt}، المتوفرة: ${availableQty}`
-          );
-        }
-
-        // 2. Decrement stock from branch-level ProductStock
-        await tx.productStock.update({
-          where: {
-            company_id_branch_id_product_id: {
-              company_id: companyId,
-              branch_id: branchId,
-              product_id: productIdInt,
-            },
-          },
-          data: {
-            stock_qty: {
-              decrement: qtyInt,
-            },
-          },
-        });
-
-        // Also decrement from product's fallback stock_qty column for backwards compatibility
-        await tx.product.update({
-          where: { id: product.id },
-          data: {
-            stock_qty: {
-              decrement: qtyInt,
-            },
-          },
-        });
-
-        const unitPriceFloat = item.unit_price !== undefined ? parseFloat(item.unit_price) : product.sell_price;
-
-        if (isNaN(unitPriceFloat)) {
-          throw new Error(`Valid unit_price is required for product "${product.name}"`);
-        }
-
-        subtotal += unitPriceFloat * qtyInt;
-
-        verifiedItems.push({
-          product_id: product.id,
-          qty: qtyInt,
-          unit_price: unitPriceFloat,
-          cost_price: product.cost_price,
-        });
-      }
-
-      // Calculate totals
-      const discountAmount = subtotal * (discountFloat / 100);
-      const taxAmount = (subtotal - discountAmount) * (taxFloat / 100);
-      const grandTotal = subtotal - discountAmount + taxAmount;
-
-      // 3. Create Sale record
-      const newSale = await tx.sale.create({
-        data: {
-          company_id: companyId,
-          branch_id: branchId,
-          ...(customerIdInt ? { customer: { connect: { id: customerIdInt } } } : {}),
-          customer_name: customer_name || null,
-          total: grandTotal,
-          discount: discountFloat,
-          tax: taxFloat,
-          amount_paid: amountPaidFloat,
-          payment_method,
-          sale_type: sale_type?.toLowerCase() || 'retail',
-          notes: notes || null,
-          seller_name: seller_name || null,
-        },
-      });
-
-      // 4. Create SaleItem records
-      for (const verifiedItem of verifiedItems) {
-        await tx.saleItem.create({
-          data: {
-            sale_id: newSale.id,
-            product_id: verifiedItem.product_id,
-            qty: verifiedItem.qty,
-            unit_price: verifiedItem.unit_price,
-            cost_price: verifiedItem.cost_price,
-          },
-        });
-      }
-
-      // 5. Update Customer Ledger if Customer is attached
-      if (customerIdInt) {
-        const unpaid = grandTotal - amountPaidFloat;
-        if (Math.abs(unpaid) > 0.001) {
-          const type = unpaid > 0 ? 'debt' : 'payment';
-          const amount = Math.abs(unpaid);
-
-          // Get customer's current balance to calculate the remaining balance
-          const customer = await tx.customer.findFirst({
-            where: { id: customerIdInt, company_id: companyId },
-          });
-          const currentBalance = customer ? customer.balance : 0;
-          const remainingBalance = currentBalance + unpaid;
-          const internalNote = `[ملاحظة داخلية: الدين المتبقي: ${remainingBalance.toFixed(2)}]`;
-          const txNotes = `Auto-generated from Sale #${newSale.id} | ${internalNote}`;
-
-          // Create customer ledger transaction
-          await tx.customerTransaction.create({
-            data: {
-              company_id: companyId,
-              customer_id: customerIdInt,
-              type,
-              amount,
-              notes: txNotes,
-            },
-          });
-
-          // Update customer balance
-          await tx.customer.update({
-            where: { id: customerIdInt },
-            data: {
-              balance: {
-                increment: unpaid,
-              },
-            },
-          });
-        }
-      }
-
-      // 6. User Activity Log inside user table
-      if (seller_name) {
-        const user = await tx.user.findFirst({
-          where: { name: seller_name, company_id: companyId },
-        });
-        if (user) {
-          const logs = JSON.parse(user.logs || '[]');
-          logs.push({
-            action: 'CREATE_SALE',
-            details: { sale_id: newSale.id, total: grandTotal },
-            timestamp: new Date().toISOString(),
-          });
-          await tx.user.update({
-            where: { id: user.id },
-            data: { logs: JSON.stringify(logs) },
-          });
-        }
-      }
-
-      return newSale;
-    }, {
-      maxWait: 15000,
-      timeout: 30000,
+export const listHeldSales = async (req: Request, res: Response) => {
+  try {
+    const tenant = req.tenant!;
+    const result = await saleService.listSales(tenant, {
+      ...req.query,
+      status: 'held',
     });
+    res.json(result);
+  } catch (error) {
+    handleSaleError(res, error);
+  }
+};
 
-    // Retrieve the fully created sale with items
-    const fullSale = await prisma.sale.findFirst({
-      where: { id: sale.id, company_id: companyId },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
+export const resumeSale = async (req: Request, res: Response) => {
+  try {
+    const tenant = req.tenant!;
+    const saleId = parseParamId(req.params.id);
+    if (isNaN(saleId)) {
+      res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid sale ID' });
+      return;
+    }
+    const sale = await saleService.resumeSale(saleId, tenant);
+    res.json(sale);
+  } catch (error) {
+    handleSaleError(res, error);
+  }
+};
 
-    res.status(201).json(fullSale);
-  } catch (error: any) {
-    res.status(400).json({ error: error.message });
+export const completeHeldSale = async (req: Request, res: Response) => {
+  try {
+    const tenant = req.tenant!;
+    const saleId = parseParamId(req.params.id);
+    if (isNaN(saleId)) {
+      res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid sale ID' });
+      return;
+    }
+    const sale = await saleService.completeHeldSale(saleId, req.body, tenant);
+    res.json(sale);
+  } catch (error) {
+    handleSaleError(res, error);
+  }
+};
+
+export const cancelSale = async (req: Request, res: Response) => {
+  try {
+    const tenant = req.tenant!;
+    const saleId = parseParamId(req.params.id);
+    if (isNaN(saleId)) {
+      res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid sale ID' });
+      return;
+    }
+    const sale = await saleService.cancelSale(saleId, req.body, tenant);
+    res.json(sale);
+  } catch (error) {
+    handleSaleError(res, error);
+  }
+};
+
+export const reprintSale = async (req: Request, res: Response) => {
+  try {
+    const tenant = req.tenant!;
+    const saleId = parseParamId(req.params.id);
+    if (isNaN(saleId)) {
+      res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid sale ID' });
+      return;
+    }
+    const sale = await saleService.reprintSale(saleId, tenant);
+    res.json(sale);
+  } catch (error) {
+    handleSaleError(res, error);
   }
 };
 
 export const getAllSales = async (req: Request, res: Response) => {
   try {
-    const companyId = req.tenant!.company_id;
-    const branchId = req.tenant!.branch_id;
-    const { from, to, customerId, sale_type, invoiceId, page = 1, limit = 10 } = req.query;
-    const pageInt = parseInt(page as string);
-    const limitInt = parseInt(limit as string);
-    const skip = (pageInt - 1) * limitInt;
-
-    const where: any = {
-      company_id: companyId,
-      branch_id: branchId,
+    const tenant = req.tenant!;
+    const filters = {
+      from: req.query.from as string,
+      to: req.query.to as string,
+      customerId: req.query.customerId ? parseInt(req.query.customerId as string, 10) : undefined,
+      sale_type: req.query.sale_type as string,
+      invoiceId: req.query.invoiceId as string,
+      status: req.query.status as string,
+      page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
+      limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 10,
     };
-
-    if (invoiceId) {
-      where.id = parseInt(invoiceId as string);
-    }
-
-    if (customerId) {
-      where.customer_id = parseInt(customerId as string);
-    }
-
-    if (sale_type && sale_type !== 'all') {
-      where.sale_type = sale_type as string;
-    }
-
-    if (from || to) {
-      where.created_at = {};
-      if (from) {
-        where.created_at.gte = new Date((from as string) + 'T00:00:00.000Z');
-      }
-      if (to) {
-        where.created_at.lte = new Date((to as string) + 'T23:59:59.999Z');
-      }
-    }
-
-    const [sales, total] = await Promise.all([
-      prisma.sale.findMany({
-        where,
-        include: {
-          customer: {
-            select: { name: true },
-          },
-          items: {
-            include: {
-              product: {
-                select: { name: true, sku: true },
-              },
-            },
-          },
-          refunds: {
-            select: { id: true, total: true },
-          },
-        },
-        orderBy: { created_at: 'desc' },
-        skip,
-        take: limitInt,
-      }),
-      prisma.sale.count({ where }),
-    ]);
-
-    const formattedSales = sales.map((sale: any) => ({
-      ...sale,
-      customer_name: sale.customer ? sale.customer.name : sale.customer_name,
-    }));
-
-    const totalPages = Math.ceil(total / limitInt);
-
-    res.json({
-      data: formattedSales,
-      total,
-      page: pageInt,
-      limit: limitInt,
-      totalPages,
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    const result = await saleService.listSales(tenant, filters);
+    res.json(result);
+  } catch (error) {
+    handleSaleError(res, error);
   }
 };
 
 export const getSaleById = async (req: Request, res: Response) => {
   try {
-    const companyId = req.tenant!.company_id;
-    const id = parseInt(req.params.id as string);
-    if (isNaN(id)) {
-      res.status(400).json({ error: 'Invalid sale ID' });
+    const tenant = req.tenant!;
+    const saleId = parseParamId(req.params.id);
+    if (isNaN(saleId)) {
+      res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid sale ID' });
       return;
     }
-
-    const sale = await prisma.sale.findFirst({
-      where: { id, company_id: companyId },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: true,
-          },
-        },
-        refunds: {
-          include: {
-            items: {
-              include: {
-                product: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!sale) {
-      res.status(404).json({ error: 'Sale invoice not found' });
-      return;
-    }
-
-    const formattedSale = {
-      ...sale,
-      customer_name: sale.customer ? sale.customer.name : sale.customer_name,
-    };
-
-    res.json(formattedSale);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    const sale = await saleService.getSaleById(saleId, tenant);
+    res.json(sale);
+  } catch (error) {
+    handleSaleError(res, error);
   }
 };
+
+
