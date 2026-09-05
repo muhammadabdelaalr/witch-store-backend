@@ -279,28 +279,51 @@ export const getCompanies = async (req: Request, res: Response) => {
 
 export const createCompany = async (req: Request, res: Response) => {
   try {
-    const { name, legal_name, phone, email, password, address, app_name } = req.body;
-    if (!name && !phone) {
+    const { 
+      name, 
+      legal_name, 
+      phone, 
+      email, 
+      password, 
+      address, 
+      app_name,
+      supervisor_name,
+      supervisor_phone
+    } = req.body;
+
+    const finalCompName = name ? name.trim() : (phone ? phone.trim() : '');
+    if (!finalCompName) {
       res.status(400).json({ error: 'BAD_REQUEST', message: 'يجب إدخال اسم الشركة أو رقم الهاتف على الأقل.' });
       return;
     }
     if (!address) {
-      res.status(400).json({ error: 'BAD_REQUEST', message: 'العنوان مطلوب.' });
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'عنوان الشركة حقل مطلوب.' });
       return;
     }
-    if (!email) {
-      res.status(400).json({ error: 'BAD_REQUEST', message: 'البريد الإلكتروني للمشرف مطلوب.' });
+
+    const finalSupervisorName = (supervisor_name || name || '').trim();
+    const finalSupervisorPhone = (supervisor_phone || phone || '').trim();
+
+    if (!finalSupervisorName) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'اسم المشرف/المسؤول حقل مطلوب.' });
       return;
     }
-    if (!password) {
+    if (!finalSupervisorPhone) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'رقم هاتف المشرف/المسؤول حقل مطلوب.' });
+      return;
+    }
+    if (!password || password.trim().length === 0) {
       res.status(400).json({ error: 'BAD_REQUEST', message: 'كلمة مرور المشرف مطلوبة.' });
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      res.status(400).json({ error: 'BAD_REQUEST', message: 'البريد الإلكتروني للمشرف غير صالح.' });
-      return;
+    const trimmedEmail = email ? email.trim() : null;
+    if (trimmedEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        res.status(400).json({ error: 'BAD_REQUEST', message: 'البريد الإلكتروني للمشرف غير صالح.' });
+        return;
+      }
     }
 
     const singleCompanyMode = process.env.OWNER_SINGLE_COMPANY_MODE === 'true';
@@ -316,16 +339,16 @@ export const createCompany = async (req: Request, res: Response) => {
     }
 
     const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
-    const adminPasswordHash = await hashPassword(password);
+    const adminPasswordHash = await hashPassword(password.trim());
 
     // Create Company, default Branch, and Admin User inside a transaction
     const result = await prisma.$transaction(async (tx) => {
       const newCompany = await tx.company.create({
         data: {
-          name: name ? name.trim() : phone.trim(),
+          name: finalCompName,
           legal_name: legal_name ? legal_name.trim() : null,
-          phone: phone ? phone.trim() : null,
-          email: email.trim(),
+          phone: phone ? phone.trim() : finalSupervisorPhone,
+          email: trimmedEmail,
           address: address.trim(),
           status: 'active',
           app_name: app_name ? app_name.trim() : null,
@@ -345,10 +368,10 @@ export const createCompany = async (req: Request, res: Response) => {
           company_id: newCompany.id,
           branch_id: defaultBranch.id,
           role_id: ownerRole?.id || null,
-          name: email.trim(),
-          email: email.trim(),
+          name: finalSupervisorName,
+          email: trimmedEmail,
           password: adminPasswordHash,
-          phone: phone ? phone.trim() : '0000000000',
+          phone: finalSupervisorPhone,
           isAdmin: true,
           logs: '[]',
         },
@@ -363,7 +386,7 @@ export const createCompany = async (req: Request, res: Response) => {
         'CREATE_COMPANY',
         'Company',
         result.company.id,
-        `إنشاء شركة جديدة: ${name || phone} مع الفرع الرئيسي والمشرف`
+        `إنشاء شركة جديدة: ${finalCompName} والمشرف: ${finalSupervisorName}`
       );
     }
 
@@ -376,7 +399,18 @@ export const createCompany = async (req: Request, res: Response) => {
 export const updateCompany = async (req: Request, res: Response) => {
   try {
     const { id } = req.params as { id: string };
-    const { name, legal_name, phone, email, address, status, app_name } = req.body;
+    const { 
+      name, 
+      legal_name, 
+      phone, 
+      email, 
+      address, 
+      status, 
+      app_name,
+      supervisor_name,
+      supervisor_phone,
+      password 
+    } = req.body;
 
     const companyId = parseInt(id, 10);
     if (isNaN(companyId)) {
@@ -390,49 +424,82 @@ export const updateCompany = async (req: Request, res: Response) => {
       return;
     }
 
+    const trimmedEmail = email !== undefined ? (email ? email.trim() : null) : undefined;
+
     const updated = await prisma.company.update({
       where: { id: companyId },
       data: { 
-        name: name || (phone ? phone : undefined), 
-        legal_name, 
-        phone, 
-        email, 
-        address, 
+        name: name ? name.trim() : undefined, 
+        legal_name: legal_name !== undefined ? (legal_name ? legal_name.trim() : null) : undefined, 
+        phone: phone !== undefined ? (phone ? phone.trim() : null) : undefined, 
+        email: trimmedEmail, 
+        address: address ? address.trim() : undefined, 
         status,
         app_name: app_name !== undefined ? (app_name ? app_name.trim() : null) : undefined
       },
-    });
-
-    if (email && oldCompany.email !== email) {
-      // Find the admin user with the old email and update to the new email
-      const adminUser = await prisma.user.findFirst({
-        where: {
-          company_id: companyId,
-          name: oldCompany.email || 'Administrator'
-        }
-      });
-
-      if (adminUser) {
-        await prisma.user.update({
-          where: { id: adminUser.id },
-          data: { name: email, email: email }
-        });
-      } else {
-        // Fallback: look for Administrator or admin
-        const fallbackAdmin = await prisma.user.findFirst({
-          where: {
-            company_id: companyId,
-            name: { in: ['admin', 'Administrator'] }
-          }
-        });
-        if (fallbackAdmin) {
-          await prisma.user.update({
-            where: { id: fallbackAdmin.id },
-            data: { name: email, email: email }
-          });
+      include: {
+        users: {
+          where: { isAdmin: true },
+          select: { id: true, name: true, phone: true, email: true, isAdmin: true }
         }
       }
+    });
+
+    // Update Supervisor / Admin User details if supplied
+    const adminUser = await prisma.user.findFirst({
+      where: {
+        company_id: companyId,
+        isAdmin: true
+      }
+    });
+
+    const userUpdateData: any = {};
+
+    if (supervisor_name && supervisor_name.trim()) {
+      userUpdateData.name = supervisor_name.trim();
     }
+    if (supervisor_phone && supervisor_phone.trim()) {
+      userUpdateData.phone = supervisor_phone.trim();
+    }
+    if (trimmedEmail !== undefined) {
+      userUpdateData.email = trimmedEmail;
+    }
+    if (password && password.trim().length > 0) {
+      userUpdateData.password = await hashPassword(password.trim());
+    }
+
+    if (adminUser && Object.keys(userUpdateData).length > 0) {
+      await prisma.user.update({
+        where: { id: adminUser.id },
+        data: userUpdateData
+      });
+    }
+
+    // Refetch company with updated admin user to return fresh state
+    const freshCompany = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        _count: {
+          select: {
+            branches: true,
+            licenses: true,
+            devices: true,
+            users: true,
+            products: true,
+          },
+        },
+        users: {
+          where: { isAdmin: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            isAdmin: true,
+          },
+        },
+      },
+    });
 
     if (req.ownerAdmin) {
       await logOwnerAction(
@@ -440,11 +507,11 @@ export const updateCompany = async (req: Request, res: Response) => {
         'UPDATE_COMPANY',
         'Company',
         companyId,
-        `تحديث بيانات الشركة: ${name || updated.name}، الحالة: ${status || updated.status}`
+        `تحديث بيانات الشركة والمشرف: ${name || updated.name}`
       );
     }
 
-    res.json(updated);
+    res.json(freshCompany || updated);
   } catch (error: any) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
@@ -726,15 +793,14 @@ export const createLicense = async (req: Request, res: Response) => {
 
       // Default modules/features mappings from Plan
       if (!allow_all_modules) {
-        // Module overrides
-        for (const pm of plan.plan_modules) {
-          await tx.licenseModule.create({
-            data: { license_id: license.id, module_id: pm.module_id, is_enabled: true },
+        if (plan.plan_modules.length > 0) {
+          await tx.licenseModule.createMany({
+            data: plan.plan_modules.map(pm => ({ license_id: license.id, module_id: pm.module_id, is_enabled: true }))
           });
         }
+
         // Custom override adjustments if supplied
         if (customModules && Array.isArray(customModules)) {
-          // customModules [{ moduleId: number, isEnabled: boolean }]
           for (const cm of customModules) {
             await tx.licenseModule.upsert({
               where: { license_id_module_id: { license_id: license.id, module_id: cm.moduleId } },
@@ -744,15 +810,14 @@ export const createLicense = async (req: Request, res: Response) => {
           }
         }
 
-        // Feature overrides
-        for (const pf of plan.plan_features) {
-          await tx.licenseFeature.create({
-            data: { license_id: license.id, feature_id: pf.feature_id, is_enabled: true },
+        if (plan.plan_features.length > 0) {
+          await tx.licenseFeature.createMany({
+            data: plan.plan_features.map(pf => ({ license_id: license.id, feature_id: pf.feature_id, is_enabled: true }))
           });
         }
+
         // Custom override adjustments if supplied
         if (customFeatures && Array.isArray(customFeatures)) {
-          // customFeatures [{ featureId: number, isEnabled: boolean }]
           for (const cf of customFeatures) {
             await tx.licenseFeature.upsert({
               where: { license_id_feature_id: { license_id: license.id, feature_id: cf.featureId } },
@@ -764,7 +829,7 @@ export const createLicense = async (req: Request, res: Response) => {
       }
 
       return license;
-    });
+    }, { timeout: 20000 });
 
     const completeLicense = await prisma.license.findUnique({
       where: { id: result.id },

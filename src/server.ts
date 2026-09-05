@@ -26,7 +26,7 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 const requiredSecrets = [
   "JWT_SECRET",
   "JWT_REFRESH_SECRET",
-  "LICENSE_SIGNING_SECRET",
+  "LICENSE_PRIVATE_KEY_BASE64",
 ];
 const missingSecrets = requiredSecrets.filter((key) => !process.env[key]);
 if (missingSecrets.length > 0) {

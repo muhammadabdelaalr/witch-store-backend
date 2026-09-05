@@ -32,21 +32,24 @@ const USER_PUBLIC_SELECT = {
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
     const companyId = req.tenant!.company_id;
-    const branchId = req.tenant!.branch_id;
     const search = req.query.search as string | undefined;
     const page = req.query.page ? parseInt(req.query.page as string) : 1;
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
     const skip = (page - 1) * limit;
 
     const where: any = {
       company_id: companyId,
-      branch_id: branchId,
     };
+
+    if (req.query.branch_id) {
+      where.branch_id = parseInt(req.query.branch_id as string, 10);
+    }
 
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -80,12 +83,20 @@ export const createUser = async (req: Request, res: Response) => {
     const username = getUsername(req);
     const { name, email, password, phone, isAdmin, role_id } = req.body;
 
-    if (!name || !password || !phone) {
-      res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'Username (name), password, and phone are required' });
+    if (!name || !name.trim()) {
+      res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'اسم المستخدم حقل مطلوب' });
+      return;
+    }
+    if (!phone || !phone.trim()) {
+      res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'رقم هاتف المستخدم حقل مطلوب' });
+      return;
+    }
+    if (!password || !password.trim()) {
+      res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'كلمة مرور المستخدم مطلوبة' });
       return;
     }
 
-    const passwordHash = await hashPassword(password);
+    const passwordHash = await hashPassword(password.trim());
     const isAdminFlag = isAdmin === true || isAdmin === 'true';
     const resolvedRoleId = role_id
       ? parseInt(role_id, 10)
@@ -95,10 +106,10 @@ export const createUser = async (req: Request, res: Response) => {
       data: {
         company_id: companyId,
         branch_id: branchId,
-        name,
-        email: email || null,
+        name: name.trim(),
+        email: email && email.trim() ? email.trim() : null,
         password: passwordHash,
-        phone,
+        phone: phone.trim(),
         isAdmin: isAdminFlag,
         role_id: resolvedRoleId,
         logs: '[]',
@@ -205,7 +216,8 @@ export const deleteUser = async (req: Request, res: Response) => {
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const companyId = req.tenant!.company_id;
-    const { username, password } = req.body;
+    const username = req.body.username || req.body.name || req.body.email;
+    const password = req.body.password;
 
     if (!username || !password) {
       res.status(400).json({ success: false, code: 'BAD_REQUEST', message: 'Username and password are required' });
@@ -215,7 +227,7 @@ export const loginUser = async (req: Request, res: Response) => {
     const user = await prisma.user.findFirst({
       where: {
         company_id: companyId,
-        OR: [{ name: username }, { email: username }],
+        OR: [{ name: username }, { email: username }, { phone: username }],
       },
       include: { role: true },
     });
