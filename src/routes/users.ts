@@ -7,6 +7,7 @@ import {
   loginUser,
   syncActiveUser,
   logoutUser,
+  getLoginUsers,
 } from '../controllers/users';
 import { authTokenMiddleware } from '../middleware/auth';
 import { tenantResolverMiddleware } from '../middleware/tenant';
@@ -18,6 +19,8 @@ const router = Router();
 
 router.use(authTokenMiddleware);
 router.use(tenantResolverMiddleware);
+
+router.get('/login-list', getLoginUsers);
 
 /**
  * @swagger

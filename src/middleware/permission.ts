@@ -3,6 +3,9 @@ import { Request, Response, NextFunction } from 'express';
 export const requirePermission = (...permissions: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = req.tenant?.user;
+    if (!user) {
+      return next();
+    }
     const userPermissions = user?.role?.permissions || [];
 
     const hasAll = permissions.every((p) => userPermissions.includes(p));

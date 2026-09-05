@@ -310,3 +310,22 @@ export const logoutUser = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, code: 'INTERNAL_SERVER_ERROR', message: error.message });
   }
 };
+
+export const getLoginUsers = async (req: Request, res: Response) => {
+  try {
+    const companyId = req.tenant!.company_id;
+    const users = await prisma.user.findMany({
+      where: { company_id: companyId },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        isAdmin: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+    res.json({ success: true, data: users });
+  } catch (error: any) {
+    res.status(500).json({ success: false, code: 'INTERNAL_SERVER_ERROR', message: error.message });
+  }
+};
