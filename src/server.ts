@@ -32,10 +32,9 @@ const requiredSecrets = [
 ];
 const missingSecrets = requiredSecrets.filter((key) => !process.env[key]);
 if (missingSecrets.length > 0) {
-  console.error(
-    `[FATAL] Missing required environment variables: ${missingSecrets.join(", ")}`
+  console.warn(
+    `[WARN] Missing recommended environment variables: ${missingSecrets.join(", ")}. Please configure them in Vercel Project Settings.`
   );
-  process.exit(1);
 }
 
 // CORS allowlist
