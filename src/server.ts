@@ -121,8 +121,8 @@ app.use(
   },
 );
 
-// Setup Swagger Documentation (dev only by default)
-if (NODE_ENV !== "production") {
+// Setup Swagger Documentation
+if (process.env.ENABLE_SWAGGER !== "false") {
   setupSwagger(app);
 }
 
