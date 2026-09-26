@@ -1,6 +1,7 @@
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import { Express } from "express";
+import staticSwaggerSpec from "./swagger-spec.json";
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -12,28 +13,63 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
+        url: "https://witch-store-backend.vercel.app",
+        description: "Production server (Vercel)",
+      },
+      {
         url: "http://localhost:3000",
         description: "Development server",
       },
     ],
   },
-  // Paths to files containing OpenAPI definitions
   apis: ["./src/routes/*.ts", "./src/controllers/*.ts"],
 };
 
-const swaggerSpec = swaggerJsdoc(options);
+const dynamicSpec = swaggerJsdoc(options);
+
+// If dynamic scanning yielded no paths (common in serverless / bundled environments), use the pre-generated spec
+const swaggerSpec =
+  (dynamicSpec as any).paths && Object.keys((dynamicSpec as any).paths).length > 0
+    ? dynamicSpec
+    : (staticSwaggerSpec as any);
+
+const swaggerUiOptions: swaggerUi.SwaggerUiOptions = {
+  customCssUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css",
+  customJs: [
+    "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js",
+  ],
+};
 
 export const setupSwagger = (app: Express) => {
-  // Serve Swagger UI
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  // Common redirect aliases so urls like /api/swagger/index.html or /swagger open seamlessly
+  const aliases = [
+    "/api/swagger",
+    "/api/swagger/index.html",
+    "/swagger",
+    "/swagger/index.html",
+    "/docs",
+  ];
+  app.get(aliases, (_req, res) => {
+    res.redirect("/api-docs");
+  });
 
-  // Expose the OpenAPI JSON spec just in case
-  app.get("/api-docs.json", (req, res) => {
+  // Serve Swagger UI
+  app.use(
+    "/api-docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, swaggerUiOptions),
+  );
+
+  // Expose the OpenAPI JSON spec
+  app.get("/api-docs.json", (_req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerSpec);
   });
 
   console.log(
-    `📄 Swagger docs available at http://localhost:${process.env.PORT || 3000}/api-docs`,
+    `📄 Swagger docs available at /api-docs (or http://localhost:${process.env.PORT || 3000}/api-docs)`,
   );
 };
+

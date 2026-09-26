@@ -7,8 +7,17 @@ import {
   deleteProduct,
   adjustStock,
 } from '../controllers/products';
+import { authTokenMiddleware } from '../middleware/auth';
+import { tenantResolverMiddleware } from '../middleware/tenant';
+import { requireModule } from '../middleware/guards';
+import { requirePermission } from '../middleware/permission';
+import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
+router.use(requireModule('products'));
 
 /**
  * @swagger
@@ -62,7 +71,7 @@ const router = Router();
  *       200:
  *         description: Success
  */
-router.get('/', getAllProducts);
+router.get('/', requirePermission(PERMISSIONS.PRODUCT_READ), getAllProducts);
 
 /**
  * @swagger
@@ -74,8 +83,8 @@ router.get('/', getAllProducts);
  *       200:
  *         description: Success
  */
-router.get('/barcode', getProductByBarcode);
-router.post('/', createProduct);
+router.get('/barcode', requirePermission(PERMISSIONS.PRODUCT_READ), getProductByBarcode);
+router.post('/', requirePermission(PERMISSIONS.PRODUCT_CREATE), createProduct);
 
 /**
  * @swagger
@@ -132,8 +141,8 @@ router.post('/', createProduct);
  *         schema:
  *           type: string
  */
-router.put('/:id', updateProduct);
-router.delete('/:id', deleteProduct);
+router.put('/:id', requirePermission(PERMISSIONS.PRODUCT_UPDATE), updateProduct);
+router.delete('/:id', requirePermission(PERMISSIONS.PRODUCT_DELETE), deleteProduct);
 
 /**
  * @swagger
@@ -166,6 +175,6 @@ router.delete('/:id', deleteProduct);
  *         schema:
  *           type: string
  */
-router.post('/:id/adjust-stock', adjustStock);
+router.post('/:id/adjust-stock', requirePermission(PERMISSIONS.INVENTORY_ADJUST), adjustStock);
 
 export default router;

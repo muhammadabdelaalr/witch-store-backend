@@ -7,9 +7,20 @@ import {
   loginUser,
   syncActiveUser,
   logoutUser,
+  getLoginUsers,
 } from '../controllers/users';
+import { authTokenMiddleware } from '../middleware/auth';
+import { tenantResolverMiddleware } from '../middleware/tenant';
+import { requireModule } from '../middleware/guards';
+import { requirePermission } from '../middleware/permission';
+import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
+
+router.get('/login-list', getLoginUsers);
 
 /**
  * @swagger
@@ -48,8 +59,8 @@ const router = Router();
  *       200:
  *         description: Success
  */
-router.get('/', getAllUsers);
-router.post('/', createUser);
+router.get('/', requireModule('users'), requirePermission(PERMISSIONS.USER_READ), getAllUsers);
+router.post('/', requireModule('users'), requirePermission(PERMISSIONS.USER_CREATE), createUser);
 
 /**
  * @swagger
@@ -90,8 +101,8 @@ router.post('/', createUser);
  *         schema:
  *           type: string
  */
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
+router.put('/:id', requireModule('users'), requirePermission(PERMISSIONS.USER_UPDATE), updateUser);
+router.delete('/:id', requireModule('users'), requirePermission(PERMISSIONS.USER_DELETE), deleteUser);
 
 /**
  * @swagger

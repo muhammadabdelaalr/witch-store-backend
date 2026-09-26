@@ -1,7 +1,16 @@
 import { Router } from "express";
 import { getAllCategories, createCategory } from "../controllers/categories";
+import { authTokenMiddleware } from "../middleware/auth";
+import { tenantResolverMiddleware } from "../middleware/tenant";
+import { requireModule } from "../middleware/guards";
+import { requirePermission } from "../middleware/permission";
+import { PERMISSIONS } from "../utils/permissions";
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
+router.use(requireModule('products')); // products module covers category settings
 
 /**
  * @swagger
@@ -16,6 +25,8 @@ const router = Router();
  *   get:
  *     summary: Retrieve a list of categories
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: A list of categories
@@ -33,7 +44,7 @@ const router = Router();
  *                     type: string
  *                     description: The category name
  */
-router.get("/", getAllCategories);
+router.get("/", requirePermission(PERMISSIONS.CATEGORY_READ), getAllCategories);
 
 /**
  * @swagger
@@ -41,6 +52,8 @@ router.get("/", getAllCategories);
  *   post:
  *     summary: Create a new category
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -61,6 +74,6 @@ router.get("/", getAllCategories);
  *       500:
  *         description: Internal server error
  */
-router.post("/", createCategory);
+router.post("/", requirePermission(PERMISSIONS.CATEGORY_CREATE), createCategory);
 
 export default router;

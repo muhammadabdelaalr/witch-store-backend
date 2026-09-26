@@ -4,8 +4,16 @@ import {
   getSalesReport,
   getProfitReport,
 } from '../controllers/reports';
+import { authTokenMiddleware } from '../middleware/auth';
+import { tenantResolverMiddleware } from '../middleware/tenant';
+import { requireModule } from '../middleware/guards';
+import { requirePermission } from '../middleware/permission';
+import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
+
+router.use(authTokenMiddleware);
+router.use(tenantResolverMiddleware);
 
 /**
  * @swagger
@@ -24,7 +32,7 @@ const router = Router();
  *       200:
  *         description: Success
  */
-router.get('/dashboard', getDashboardStats);
+router.get('/dashboard', requireModule('dashboard'), requirePermission(PERMISSIONS.REPORT_READ), getDashboardStats);
 
 /**
  * @swagger
@@ -36,7 +44,7 @@ router.get('/dashboard', getDashboardStats);
  *       200:
  *         description: Success
  */
-router.get('/sales', getSalesReport);
+router.get('/sales', requireModule('reports'), requirePermission(PERMISSIONS.REPORT_READ), getSalesReport);
 
 /**
  * @swagger
@@ -48,6 +56,6 @@ router.get('/sales', getSalesReport);
  *       200:
  *         description: Success
  */
-router.get('/profit', getProfitReport);
+router.get('/profit', requireModule('reports'), requirePermission(PERMISSIONS.REPORT_READ), getProfitReport);
 
 export default router;

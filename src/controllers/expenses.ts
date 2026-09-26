@@ -3,12 +3,17 @@ import { prisma, logUserActivity, getUsername } from '../prisma';
 
 export const getAllExpenses = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const { from, to, category, page = 1, limit = 10 } = req.query;
     const pageInt = parseInt(page as string);
     const limitInt = parseInt(limit as string);
     const skip = (pageInt - 1) * limitInt;
 
-    const where: any = {};
+    const where: any = {
+      company_id: companyId,
+      branch_id: branchId,
+    };
 
     if (category) {
       where.category = category as string;
@@ -50,6 +55,8 @@ export const getAllExpenses = async (req: Request, res: Response) => {
 
 export const createExpense = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
+    const branchId = req.tenant!.branch_id;
     const username = getUsername(req);
     const { category_id, category, amount, description, date } = req.body;
 
@@ -60,6 +67,8 @@ export const createExpense = async (req: Request, res: Response) => {
 
     const expense = await prisma.expense.create({
       data: {
+        company_id: companyId,
+        branch_id: branchId,
         category_id: category_id ? parseInt(category_id) : null,
         category,
         amount: parseFloat(amount),
@@ -68,7 +77,7 @@ export const createExpense = async (req: Request, res: Response) => {
       },
     });
 
-    await logUserActivity(username, 'CREATE_EXPENSE', {
+    await logUserActivity(companyId, username, 'CREATE_EXPENSE', {
       id: expense.id,
       amount: expense.amount,
       category: expense.category,
@@ -82,10 +91,20 @@ export const createExpense = async (req: Request, res: Response) => {
 
 export const updateExpense = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid expense ID' });
+      return;
+    }
+
+    // Ensure expense belongs to company
+    const existing = await prisma.expense.findFirst({
+      where: { id, company_id: companyId },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'Expense not found' });
       return;
     }
 
@@ -110,7 +129,7 @@ export const updateExpense = async (req: Request, res: Response) => {
       data: updateData,
     });
 
-    await logUserActivity(username, 'UPDATE_EXPENSE', {
+    await logUserActivity(companyId, username, 'UPDATE_EXPENSE', {
       id: expense.id,
       amount: expense.amount,
       category: expense.category,
@@ -124,6 +143,7 @@ export const updateExpense = async (req: Request, res: Response) => {
 
 export const deleteExpense = async (req: Request, res: Response) => {
   try {
+    const companyId = req.tenant!.company_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
@@ -131,8 +151,8 @@ export const deleteExpense = async (req: Request, res: Response) => {
       return;
     }
 
-    const expense = await prisma.expense.findUnique({
-      where: { id },
+    const expense = await prisma.expense.findFirst({
+      where: { id, company_id: companyId },
     });
 
     if (!expense) {
@@ -144,7 +164,7 @@ export const deleteExpense = async (req: Request, res: Response) => {
       where: { id },
     });
 
-    await logUserActivity(username, 'DELETE_EXPENSE', {
+    await logUserActivity(companyId, username, 'DELETE_EXPENSE', {
       id,
       amount: expense.amount,
       category: expense.category,
