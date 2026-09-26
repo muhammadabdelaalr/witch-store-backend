@@ -16,6 +16,7 @@ const USER_PUBLIC_SELECT = {
   name: true,
   email: true,
   phone: true,
+  plain_password: true,
   isAdmin: true,
   logs: true,
   registrationDate: true,
@@ -109,6 +110,7 @@ export const createUser = async (req: Request, res: Response) => {
         name: name.trim(),
         email: email && email.trim() ? email.trim() : null,
         password: passwordHash,
+        plain_password: password.trim(),
         phone: phone.trim(),
         isAdmin: isAdminFlag,
         role_id: resolvedRoleId,
@@ -148,7 +150,10 @@ export const updateUser = async (req: Request, res: Response) => {
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
-    if (password !== undefined && password !== '') updateData.password = await hashPassword(password);
+    if (password !== undefined && password !== '') {
+      updateData.password = await hashPassword(password);
+      updateData.plain_password = password.trim();
+    }
     if (phone !== undefined) updateData.phone = phone;
 
     let resolvedRoleId: number | null | undefined = undefined;

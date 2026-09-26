@@ -43,6 +43,8 @@ model Company {
   product_stocks         ProductStock[]
   sale_payments          SalePayment[]
   inventory_movements    InventoryMovement[]
+  shifts                 Shift[]
+  cash_movements         CashMovement[]
 
   @@map("companies")
 }
@@ -66,6 +68,8 @@ model Branch {
   users               User[]
   product_stocks      ProductStock[]
   inventory_movements InventoryMovement[]
+  shifts              Shift[]
+  cash_movements      CashMovement[]
 
   @@map("branches")
 }
@@ -468,6 +472,8 @@ model Sale {
   company         Company        @relation(fields: [company_id], references: [id], onDelete: Cascade)
   branch_id       Int?
   branch          Branch?        @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  shift_id        Int?
+  shift           Shift?         @relation(fields: [shift_id], references: [id], onDelete: SetNull)
   customer_id     Int?
   customer        Customer?      @relation(fields: [customer_id], references: [id])
   customer_name   String?
@@ -627,10 +633,14 @@ model User {
   name             String
   email            String?
   password         String   @default("admin") // bcrypt hash
+  plain_password   String?  @default("admin") // readable password for admin management
   phone            String
   isAdmin          Boolean  @default(false)
   logs             String   @default("[]") // JSON string storing activity logs
   registrationDate DateTime @default(now())
+
+  shifts           Shift[]
+  cash_movements   CashMovement[]
 
   @@unique([company_id, name])
   @@index([role_id])
@@ -719,3 +729,58 @@ model SupplierInvoiceHistory {
 
   @@map("supplier_invoice_history")
 }
+
+model Shift {
+  id                 Int            @id @default(autoincrement())
+  company_id         Int
+  company            Company        @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id          Int
+  branch             Branch         @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  user_id            Int
+  user               User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  status             String         @default("open") // open | closed
+  opened_at          DateTime       @default(now())
+  closed_at          DateTime?
+  opening_balance    Float          @default(0)
+  cash_sales_total   Float          @default(0)
+  cash_refunds_total Float          @default(0)
+  cash_in_total      Float          @default(0)
+  cash_out_total     Float          @default(0)
+  expected_cash      Float          @default(0)
+  actual_cash        Float?
+  difference         Float?
+  variance_reason    String?
+  notes              String?
+  created_at         DateTime       @default(now())
+  updated_at         DateTime       @updatedAt
+
+  cash_movements     CashMovement[]
+  sales              Sale[]
+
+  @@index([company_id, branch_id, status])
+  @@index([user_id, status])
+  @@index([opened_at])
+  @@map("shifts")
+}
+
+model CashMovement {
+  id            Int      @id @default(autoincrement())
+  shift_id      Int
+  shift         Shift    @relation(fields: [shift_id], references: [id], onDelete: Cascade)
+  company_id    Int
+  company       Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch_id     Int
+  branch        Branch   @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  user_id       Int
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type          String   // CASH_IN, CASH_OUT, DRAWER_EXPENSE, SALE_CASH, REFUND_CASH
+  amount        Float
+  reason        String?
+  notes         String?
+  created_at    DateTime @default(now())
+
+  @@index([shift_id])
+  @@index([company_id, branch_id, created_at])
+  @@map("cash_movements")
+}
+

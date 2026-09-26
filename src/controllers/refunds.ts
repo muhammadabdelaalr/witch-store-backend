@@ -108,6 +108,32 @@ export const createRefund = async (req: Request, res: Response) => {
             },
           },
         });
+
+        // Record audit inventory movement
+        const updatedStock = await tx.productStock.findUnique({
+          where: {
+            company_id_branch_id_product_id: {
+              company_id: companyId,
+              branch_id: branchId,
+              product_id: productIdInt,
+            },
+          },
+        });
+
+        await tx.inventoryMovement.create({
+          data: {
+            company_id: companyId,
+            branch_id: branchId,
+            product_id: productIdInt,
+            movement_type: 'SALE_RETURN',
+            quantity_delta: qtyInt,
+            balance_after: updatedStock ? updatedStock.stock_qty : qtyInt,
+            reference_type: 'refund',
+            reference_id: sale.id,
+            user_id: req.tenant?.user?.id || undefined,
+            notes: `Refund for Sale #${sale.id}`,
+          },
+        });
       }
 
       if (verifiedRefundItems.length === 0) {

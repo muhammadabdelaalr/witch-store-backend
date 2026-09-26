@@ -567,6 +567,30 @@ export async function holdSale(data: HoldSaleDTO, tenant: TenantContext): Promis
   return createSaleCore(holdData, tenant, 'held');
 }
 
+export async function listHeldSales(tenant: TenantContext): Promise<any[]> {
+  const companyId = tenant.company_id;
+  const branchId = tenant.branch_id;
+
+  const sales = await prisma.sale.findMany({
+    where: {
+      company_id: companyId,
+      branch_id: branchId,
+      status: 'held',
+    },
+    include: {
+      items: {
+        include: {
+          product: true,
+        },
+      },
+      customer: true,
+    },
+    orderBy: { created_at: 'desc' },
+  });
+
+  return sales;
+}
+
 export async function resumeSale(saleId: number, tenant: TenantContext): Promise<SaleResponseDTO> {
   const companyId = tenant.company_id;
 
@@ -587,7 +611,16 @@ export async function resumeSale(saleId: number, tenant: TenantContext): Promise
     throw new SaleError('SALE_NOT_FOUND', 'Held sale not found', 404);
   }
 
-  return buildSaleResponse(sale);
+  const response = buildSaleResponse(sale);
+
+  // Remove the held sale from the database so it no longer remains on hold
+  await prisma.$transaction([
+    prisma.salePayment.deleteMany({ where: { sale_id: sale.id } }),
+    prisma.saleItem.deleteMany({ where: { sale_id: sale.id } }),
+    prisma.sale.delete({ where: { id: sale.id } }),
+  ]);
+
+  return response;
 }
 
 export async function completeHeldSale(

@@ -13,6 +13,8 @@ import salesRouter from "./routes/sales";
 import expensesRouter from "./routes/expenses";
 import reportsRouter from "./routes/reports";
 import usersRouter from "./routes/users";
+import shiftsRouter from "./routes/shifts";
+import inventoryRouter from "./routes/inventory";
 import licenseRouter from "./routes/license";
 import ownerRouter from "./routes/owner";
 
@@ -90,6 +92,8 @@ app.use("/api/sales", salesRouter);
 app.use("/api/expenses", expensesRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/shifts", shiftsRouter);
+app.use("/api/inventory", inventoryRouter);
 app.use("/api/license", licenseRouter);
 app.use("/api/owner", ownerRouter);
 

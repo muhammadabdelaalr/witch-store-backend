@@ -49,11 +49,8 @@ export const holdSale = async (req: Request, res: Response) => {
 export const listHeldSales = async (req: Request, res: Response) => {
   try {
     const tenant = req.tenant!;
-    const result = await saleService.listSales(tenant, {
-      ...req.query,
-      status: 'held',
-    });
-    res.json(result);
+    const sales = await saleService.listHeldSales(tenant);
+    res.json({ data: sales });
   } catch (error) {
     handleSaleError(res, error);
   }

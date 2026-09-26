@@ -1,48 +1,91 @@
-import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../prisma';
-import { TenantContext } from './auth';
+import { Request, Response, NextFunction } from "express";
+import { prisma } from "../prisma";
+import { TenantContext } from "./auth";
 
-export const tenantResolverMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+const tenantCache = new Map<
+  string,
+  { tenant: TenantContext; expires: number }
+>();
+
+export const tenantResolverMiddleware = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const payload = req.tokenPayload;
     if (!payload) {
-      res.status(401).json({ error: 'TOKEN_INVALID', message: 'توكن التحقق غير صالح.' });
+      res
+        .status(401)
+        .json({ error: "TOKEN_INVALID", message: "توكن التحقق غير صالح." });
       return;
     }
 
-    const deviceIdHeader = req.headers['x-device-id'] as string;
+    const deviceIdHeader = req.headers["x-device-id"] as string;
     if (!deviceIdHeader || deviceIdHeader !== payload.device_id) {
-      res.status(403).json({ error: 'TENANT_ACCESS_DENIED', message: 'معرف الجهاز غير متطابق مع التوكن.' });
+      res
+        .status(403)
+        .json({
+          error: "TENANT_ACCESS_DENIED",
+          message: "معرف الجهاز غير متطابق مع التوكن.",
+        });
       return;
+    }
+
+    const branchIdHeader = (req.headers["x-branch-id"] as string) || "";
+    const userIdHeader = (req.headers["x-user-id"] as string) || "";
+    const cacheKey = `${payload.company_id}:${payload.license_id}:${payload.device_id}:${branchIdHeader}:${userIdHeader}`;
+
+    const cached = tenantCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) {
+      req.tenant = cached.tenant;
+      return next();
     }
 
     // 1. Verify Company Status
     const company = await prisma.company.findUnique({
-      where: { id: payload.company_id }
+      where: { id: payload.company_id },
     });
 
     if (!company) {
-      res.status(403).json({ error: 'TENANT_ACCESS_DENIED', message: 'الشركة غير مسجلة بالنظام.' });
+      res
+        .status(403)
+        .json({
+          error: "TENANT_ACCESS_DENIED",
+          message: "الشركة غير مسجلة بالنظام.",
+        });
       return;
     }
 
-    if (company.status === 'suspended') {
-      res.status(403).json({ error: 'COMPANY_SUSPENDED', message: 'تم إيقاف حساب الشركة مؤقتاً. يرجى مراجعة الإدارة.' });
+    if (company.status === "suspended") {
+      res
+        .status(403)
+        .json({
+          error: "COMPANY_SUSPENDED",
+          message: "تم إيقاف حساب الشركة مؤقتاً. يرجى مراجعة الإدارة.",
+        });
       return;
     }
 
     // 2. Verify License Status
     const license = await prisma.license.findUnique({
-      where: { id: payload.license_id }
+      where: { id: payload.license_id },
     });
 
     if (!license) {
-      res.status(403).json({ error: 'LICENSE_INVALID', message: 'الترخيص غير موجود.' });
+      res
+        .status(403)
+        .json({ error: "LICENSE_INVALID", message: "الترخيص غير موجود." });
       return;
     }
 
-    if (license.status === 'suspended') {
-      res.status(403).json({ error: 'LICENSE_SUSPENDED', message: 'الترخيص موقوف مؤقتاً. يرجى مراجعة الدعم.' });
+    if (license.status === "suspended") {
+      res
+        .status(403)
+        .json({
+          error: "LICENSE_SUSPENDED",
+          message: "الترخيص موقوف مؤقتاً. يرجى مراجعة الدعم.",
+        });
       return;
     }
 
@@ -50,18 +93,28 @@ export const tenantResolverMiddleware = async (req: Request, res: Response, next
     const now = new Date();
     if (license.expires_at && license.expires_at < now) {
       // Update status to expired in database if not already
-      if (license.status !== 'expired') {
+      if (license.status !== "expired") {
         await prisma.license.update({
           where: { id: license.id },
-          data: { status: 'expired' }
+          data: { status: "expired" },
         });
       }
-      res.status(403).json({ error: 'LICENSE_EXPIRED', message: 'انتهت صلاحية الترخيص. يرجى تجديد الاشتراك.' });
+      res
+        .status(403)
+        .json({
+          error: "LICENSE_EXPIRED",
+          message: "انتهت صلاحية الترخيص. يرجى تجديد الاشتراك.",
+        });
       return;
     }
 
-    if (license.status === 'expired') {
-      res.status(403).json({ error: 'LICENSE_EXPIRED', message: 'انتهت صلاحية الترخيص. يرجى تجديد الاشتراك.' });
+    if (license.status === "expired") {
+      res
+        .status(403)
+        .json({
+          error: "LICENSE_EXPIRED",
+          message: "انتهت صلاحية الترخيص. يرجى تجديد الاشتراك.",
+        });
       return;
     }
 
@@ -70,56 +123,77 @@ export const tenantResolverMiddleware = async (req: Request, res: Response, next
       where: {
         license_id_device_id: {
           license_id: license.id,
-          device_id: payload.device_id
-        }
-      }
+          device_id: payload.device_id,
+        },
+      },
     });
 
     if (!device) {
-      res.status(403).json({ error: 'LICENSE_INVALID', message: 'هذا الجهاز غير مفعل لهذا الترخيص.' });
+      res
+        .status(403)
+        .json({
+          error: "LICENSE_INVALID",
+          message: "هذا الجهاز غير مفعل لهذا الترخيص.",
+        });
       return;
     }
 
-    if (device.status === 'blocked') {
-      res.status(403).json({ error: 'LICENSE_DEVICE_BLOCKED', message: 'تم حظر هذا الجهاز من قبل الإدارة.' });
+    if (device.status === "blocked") {
+      res
+        .status(403)
+        .json({
+          error: "LICENSE_DEVICE_BLOCKED",
+          message: "تم حظر هذا الجهاز من قبل الإدارة.",
+        });
       return;
     }
 
-    // Update last seen
-    await prisma.deviceActivation.update({
-      where: { id: device.id },
-      data: { last_seen_at: now }
-    });
+    // Throttle last seen updates to once every 2 minutes (non-blocking)
+    if (
+      !device.last_seen_at ||
+      now.getTime() - new Date(device.last_seen_at).getTime() > 120000
+    ) {
+      prisma.deviceActivation
+        .update({
+          where: { id: device.id },
+          data: { last_seen_at: now },
+        })
+        .catch(() => {});
+    }
 
     // 4. Resolve Allowed Modules & Features
     let allowedModules: string[] = [];
     let allowedFeatures: string[] = [];
 
     if (license.allow_all_modules) {
-      const allMods = await prisma.module.findMany({ where: { is_active: true } });
-      const allFeats = await prisma.feature.findMany({ where: { is_active: true } });
-      allowedModules = allMods.map(m => m.key);
-      allowedFeatures = allFeats.map(f => f.key);
+      const allMods = await prisma.module.findMany({
+        where: { is_active: true },
+      });
+      const allFeats = await prisma.feature.findMany({
+        where: { is_active: true },
+      });
+      allowedModules = allMods.map((m) => m.key);
+      allowedFeatures = allFeats.map((f) => f.key);
     } else {
       // Resolve Modules (Plan modules + License overrides)
       const planModules = await prisma.planModule.findMany({
         where: { plan_id: license.plan_id },
-        include: { module: true }
+        include: { module: true },
       });
       const licenseOverrides = await prisma.licenseModule.findMany({
         where: { license_id: license.id },
-        include: { module: true }
+        include: { module: true },
       });
 
       const moduleSet = new Set<string>();
       // Add defaults from Plan
-      planModules.forEach(pm => {
+      planModules.forEach((pm) => {
         if (pm.module.is_active) {
           moduleSet.add(pm.module.key);
         }
       });
       // Apply License overrides
-      licenseOverrides.forEach(lo => {
+      licenseOverrides.forEach((lo) => {
         if (lo.module.is_active) {
           if (lo.is_enabled) {
             moduleSet.add(lo.module.key);
@@ -133,20 +207,20 @@ export const tenantResolverMiddleware = async (req: Request, res: Response, next
       // Resolve Features (Plan features + License overrides)
       const planFeatures = await prisma.planFeature.findMany({
         where: { plan_id: license.plan_id },
-        include: { feature: true }
+        include: { feature: true },
       });
       const licenseFeatureOverrides = await prisma.licenseFeature.findMany({
         where: { license_id: license.id },
-        include: { feature: true }
+        include: { feature: true },
       });
 
       const featureSet = new Set<string>();
-      planFeatures.forEach(pf => {
+      planFeatures.forEach((pf) => {
         if (pf.feature.is_active) {
           featureSet.add(pf.feature.key);
         }
       });
-      licenseFeatureOverrides.forEach(lf => {
+      licenseFeatureOverrides.forEach((lf) => {
         if (lf.feature.is_active) {
           if (lf.is_enabled) {
             featureSet.add(lf.feature.key);
@@ -159,32 +233,42 @@ export const tenantResolverMiddleware = async (req: Request, res: Response, next
     }
 
     // Resolve branch_id
-    const branchIdHeader = req.headers['x-branch-id'];
-    let branchId = branchIdHeader ? parseInt(branchIdHeader as string, 10) : undefined;
+    let branchId = branchIdHeader ? parseInt(branchIdHeader, 10) : undefined;
     if (branchId && !isNaN(branchId)) {
       const branchExists = await prisma.branch.findFirst({
-        where: { id: branchId, company_id: company.id }
+        where: { id: branchId, company_id: company.id },
       });
       if (!branchExists) {
-        res.status(403).json({ error: 'BRANCH_NOT_FOUND', message: 'الفرع المحدد غير مسجل لهذه الشركة.' });
+        res
+          .status(403)
+          .json({
+            error: "BRANCH_NOT_FOUND",
+            message: "الفرع المحدد غير مسجل لهذه الشركة.",
+          });
         return;
       }
     } else {
-      const mainBranch = await prisma.branch.findFirst({
-        where: { company_id: company.id, is_main: true }
-      }) || await prisma.branch.findFirst({
-        where: { company_id: company.id }
-      });
+      const mainBranch =
+        (await prisma.branch.findFirst({
+          where: { company_id: company.id, is_main: true },
+        })) ||
+        (await prisma.branch.findFirst({
+          where: { company_id: company.id },
+        }));
       if (!mainBranch) {
-        res.status(403).json({ error: 'BRANCH_REQUIRED', message: 'لا يوجد فرع مسجل لهذه الشركة.' });
+        res
+          .status(403)
+          .json({
+            error: "BRANCH_REQUIRED",
+            message: "لا يوجد فرع مسجل لهذه الشركة.",
+          });
         return;
       }
       branchId = mainBranch.id;
     }
 
     // 5. Resolve authenticated user and permissions
-    const userIdHeader = req.headers['x-user-id'] as string;
-    let userContext: TenantContext['user'] | undefined;
+    let userContext: TenantContext["user"] | undefined;
     if (userIdHeader) {
       const userId = parseInt(userIdHeader, 10);
       if (!isNaN(userId)) {
@@ -193,7 +277,9 @@ export const tenantResolverMiddleware = async (req: Request, res: Response, next
           select: {
             id: true,
             name: true,
-            role: { select: { id: true, key: true, name: true, permissions: true } },
+            role: {
+              select: { id: true, key: true, name: true, permissions: true },
+            },
           },
         });
         if (user) {
@@ -215,8 +301,16 @@ export const tenantResolverMiddleware = async (req: Request, res: Response, next
       user: userContext,
     };
 
+    // Cache resolved tenant for 60 seconds
+    tenantCache.set(cacheKey, {
+      tenant: req.tenant,
+      expires: Date.now() + 60000,
+    });
+
     next();
   } catch (error: any) {
-    res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: error.message });
+    res
+      .status(500)
+      .json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
   }
 };

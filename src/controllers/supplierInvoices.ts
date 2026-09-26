@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma, logUserActivity, getUsername } from '../prisma';
+import { InventoryService } from '../services/inventory.service';
 
 export const createSupplierInvoice = async (req: Request, res: Response) => {
   try {
@@ -82,25 +83,17 @@ export const createSupplierInvoice = async (req: Request, res: Response) => {
           },
         });
 
-        // Adjust stock at branch level
-        await tx.productStock.upsert({
-          where: {
-            company_id_branch_id_product_id: {
-              company_id: companyId,
-              branch_id: branchId,
-              product_id: prodId,
-            },
-          },
-          update: {
-            stock_qty: { increment: qtyInt },
-          },
-          create: {
-            company_id: companyId,
-            branch_id: branchId,
-            product_id: prodId,
-            stock_qty: qtyInt,
-            low_stock_threshold: 5,
-          },
+        // Adjust stock and record movement via central InventoryService
+        await InventoryService.applyMovement(tx, {
+          company_id: companyId,
+          branch_id: branchId,
+          product_id: prodId,
+          movement_type: 'PURCHASE',
+          quantity_delta: qtyInt,
+          reference_type: 'supplier_invoice',
+          reference_id: newInvoice.id,
+          user_id: (req as any).user?.id,
+          notes: `فاتورة شراء رقم #${newInvoice.id}`,
         });
       }
 
