@@ -1,20 +1,6 @@
 import { prisma } from '../prisma';
-
-export interface TenantContext {
-  company_id: number;
-  company_name: string;
-  branch_id: number;
-  user?: {
-    id: number;
-    name: string;
-    role: {
-      id: number;
-      key: string;
-      name: string;
-      permissions: string[];
-    } | null;
-  };
-}
+import { Prisma } from '../generated/prisma';
+import { TenantContext } from '../types/tenant';
 
 export class ShiftError extends Error {
   code: string;
@@ -127,26 +113,24 @@ export async function getCurrentShift(tenant: TenantContext) {
   return calculateLiveShiftTotals(shift);
 }
 
-async function calculateLiveShiftTotals(shift: any) {
-  // Aggregate cash payments for sales completed during this shift window
-  const cashPayments = await prisma.salePayment.aggregate({
+async function calculateLiveShiftTotals(shift: any, client: Prisma.TransactionClient | typeof prisma = prisma) {
+  const cashPayments = await client.salePayment.aggregate({
     where: {
       company_id: shift.company_id,
       method: 'cash',
-      created_at: { gte: shift.opened_at },
-      sale: { branch_id: shift.branch_id, status: 'completed' },
+      sale: { shift_id: shift.id, branch_id: shift.branch_id, status: 'completed' },
     },
     _sum: { amount: true },
   });
 
-  // Aggregate cash refunds completed during this shift window
-  const cashRefunds = await prisma.refund.aggregate({
+  const cashRefunds = await client.refundPayment.aggregate({
     where: {
       company_id: shift.company_id,
       branch_id: shift.branch_id,
-      created_at: { gte: shift.opened_at },
+      method: 'cash',
+      refund: { shift_id: shift.id },
     },
-    _sum: { total: true },
+    _sum: { amount: true },
   });
 
   // Aggregate manual cash movements
@@ -159,7 +143,7 @@ async function calculateLiveShiftTotals(shift: any) {
     .reduce((sum: number, m: any) => sum + m.amount, 0);
 
   const cashSalesTotal = round2(cashPayments._sum.amount || 0);
-  const cashRefundsTotal = round2(cashRefunds._sum.total || 0);
+  const cashRefundsTotal = round2(cashRefunds._sum.amount || 0);
   const cashInTotal = round2(cashInMovements);
   const cashOutTotal = round2(cashOutMovements);
 
@@ -225,71 +209,55 @@ export async function closeShift(shiftId: number, input: CloseShiftInput, tenant
   const branchId = tenant.branch_id;
   const userId = tenant.user?.id;
 
-  const shift = await prisma.shift.findFirst({
-    where: {
-      id: shiftId,
-      company_id: companyId,
-      branch_id: branchId,
-      status: 'open',
-    },
-    include: {
-      cash_movements: true,
-    },
-  });
-
-  if (!shift) {
-    throw new ShiftError('SHIFT_NOT_FOUND', 'Active open shift not found', 404);
-  }
-
-  const liveTotals = await calculateLiveShiftTotals(shift);
   const actualCash = round2(parseFloat(String(input.actual_cash || 0)));
   if (isNaN(actualCash) || actualCash < 0) {
     throw new ShiftError('INVALID_AMOUNT', 'Actual cash must be a non-negative number');
   }
 
-  const difference = round2(actualCash - liveTotals.expected_cash);
+  return prisma.$transaction(async (tx) => {
+    const claim = await tx.shift.updateMany({
+      where: { id: shiftId, company_id: companyId, branch_id: branchId, user_id: userId, status: 'open' },
+      data: { status: 'closing' },
+    });
+    if (claim.count !== 1) throw new ShiftError('SHIFT_NOT_FOUND', 'Your active open shift was not found', 404);
 
-  // If variance exists, require reason
-  if (Math.abs(difference) > 0.01 && !input.variance_reason) {
-    throw new ShiftError(
-      'VARIANCE_REASON_REQUIRED',
-      'A reason is required when a cash shortage or overage exists',
-      400,
-      { expected_cash: liveTotals.expected_cash, actual_cash: actualCash, difference }
-    );
-  }
+    const shift = await tx.shift.findFirst({
+      where: { id: shiftId, company_id: companyId, branch_id: branchId, user_id: userId, status: 'closing' },
+      include: { cash_movements: true },
+    });
+    if (!shift) throw new ShiftError('SHIFT_NOT_FOUND', 'Your active open shift was not found', 404);
 
-  const closedShift = await prisma.shift.update({
-    where: { id: shift.id },
-    data: {
-      status: 'closed',
-      closed_at: new Date(),
-      cash_sales_total: liveTotals.cash_sales_total,
-      cash_refunds_total: liveTotals.cash_refunds_total,
-      cash_in_total: liveTotals.cash_in_total,
-      cash_out_total: liveTotals.cash_out_total,
-      expected_cash: liveTotals.expected_cash,
-      actual_cash: actualCash,
-      difference,
-      variance_reason: input.variance_reason || null,
-      notes: input.notes || shift.notes,
-    },
-    include: {
-      user: { select: { id: true, name: true } },
-      cash_movements: { orderBy: { created_at: 'desc' } },
-    },
-  });
+    const liveTotals = await calculateLiveShiftTotals(shift, tx);
+    const difference = round2(actualCash - liveTotals.expected_cash);
+    if (Math.abs(difference) > 0.01 && !input.variance_reason?.trim()) {
+      throw new ShiftError('VARIANCE_REASON_REQUIRED', 'A reason is required when a cash shortage or overage exists', 400, {
+        expected_cash: liveTotals.expected_cash, actual_cash: actualCash, difference,
+      });
+    }
 
-  return closedShift;
+    return tx.shift.update({
+      where: { id: shift.id },
+      data: {
+        status: 'closed', closed_at: new Date(), cash_sales_total: liveTotals.cash_sales_total,
+        cash_refunds_total: liveTotals.cash_refunds_total, cash_in_total: liveTotals.cash_in_total,
+        cash_out_total: liveTotals.cash_out_total, expected_cash: liveTotals.expected_cash,
+        actual_cash: actualCash, difference, variance_reason: input.variance_reason?.trim() || null,
+        notes: input.notes || shift.notes,
+      },
+      include: { user: { select: { id: true, name: true } }, cash_movements: { orderBy: { created_at: 'desc' } } },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 }
 
 export async function getShiftSummary(shiftId: number, tenant: TenantContext) {
   const companyId = tenant.company_id;
+  const branchId = tenant.branch_id;
 
   const shift = await prisma.shift.findFirst({
     where: {
       id: shiftId,
       company_id: companyId,
+      branch_id: branchId,
     },
     include: {
       user: { select: { id: true, name: true } },

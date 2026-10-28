@@ -60,15 +60,23 @@ export const createCustomer = async (req: Request, res: Response) => {
       return errorResponse(res, 400, 'BAD_REQUEST', 'Customer name is required');
     }
 
-    const customer = await prisma.customer.create({
-      data: {
-        company_id: companyId,
-        name: name.trim(),
-        phone: phone || null,
-        email: email || null,
-        address: address || null,
-        balance: balance ? parseFloat(balance) : 0,
-      },
+    const openingBalance = balance === undefined || balance === '' ? 0 : parseFloat(balance);
+    if (!Number.isFinite(openingBalance)) return errorResponse(res, 400, 'BAD_REQUEST', 'Invalid opening balance');
+    const customer = await prisma.$transaction(async (tx) => {
+      const created = await tx.customer.create({
+        data: { company_id: companyId, name: name.trim(), phone: phone || null, email: email || null, address: address || null, balance: openingBalance },
+      });
+      if (Math.abs(openingBalance) > 0.001) {
+        await tx.customerTransaction.create({
+          data: {
+            company_id: companyId, customer_id: created.id,
+            type: openingBalance > 0 ? 'debt' : 'payment', amount: Math.abs(openingBalance),
+            notes: 'Opening balance', source_type: 'opening_balance', source_id: created.id,
+            idempotency_key: `customer:${created.id}:opening`,
+          },
+        });
+      }
+      return created;
     });
 
     await logUserActivity(companyId, username, 'CREATE_CUSTOMER', {
@@ -107,13 +115,23 @@ export const updateCustomer = async (req: Request, res: Response) => {
       }
     });
 
-    if (req.body.balance !== undefined) {
-      updateData.balance = parseFloat(req.body.balance);
-    }
-
-    const customer = await prisma.customer.update({
-      where: { id },
-      data: updateData,
+    const customer = await prisma.$transaction(async (tx) => {
+      if (req.body.balance !== undefined) {
+        const target = parseFloat(req.body.balance);
+        if (!Number.isFinite(target)) throw new Error('Invalid customer balance');
+        const delta = target - existing.balance;
+        if (Math.abs(delta) > 0.001) {
+          await tx.customerTransaction.create({
+            data: {
+              company_id: companyId, customer_id: id, type: delta > 0 ? 'debt' : 'payment', amount: Math.abs(delta),
+              notes: 'Administrative balance adjustment', source_type: 'balance_adjustment', source_id: id,
+              idempotency_key: `customer:${id}:adjust:${Date.now()}`,
+            },
+          });
+          updateData.balance = target;
+        }
+      }
+      return tx.customer.update({ where: { id }, data: updateData });
     });
 
     await logUserActivity(companyId, username, 'UPDATE_CUSTOMER', {
@@ -144,6 +162,9 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
 
     const customerIdInt = parseInt(customer_id);
     const amountFloat = parseFloat(amount);
+    if (!Number.isFinite(amountFloat) || amountFloat <= 0) {
+      return errorResponse(res, 400, 'BAD_REQUEST', 'Amount must be greater than zero');
+    }
 
     const transaction = await prisma.$transaction(async (tx: any) => {
       const customer = await tx.customer.findFirst({
@@ -165,6 +186,8 @@ export const addCustomerTransaction = async (req: Request, res: Response) => {
           type,
           amount: amountFloat,
           notes: finalNotes,
+          source_type: 'manual',
+          idempotency_key: typeof req.headers['idempotency-key'] === 'string' ? req.headers['idempotency-key'] : null,
         },
       });
 

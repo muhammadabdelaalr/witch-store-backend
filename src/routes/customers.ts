@@ -7,16 +7,18 @@ import {
   getCustomerTransactions,
   deleteCustomer,
 } from '../controllers/customers';
-import { authTokenMiddleware } from '../middleware/auth';
+import { authTokenMiddleware, requireUserSession } from '../middleware/auth';
 import { tenantResolverMiddleware } from '../middleware/tenant';
 import { requireModule } from '../middleware/guards';
 import { requirePermission } from '../middleware/permission';
 import { PERMISSIONS } from '../utils/permissions';
+import { customerTransactionSchema, idParamSchema, listQuerySchema, partySchema, updatePartySchema, validateBody, validateParams, validateQuery } from '../middleware/validate';
 
 const router = Router();
 
 router.use(authTokenMiddleware);
 router.use(tenantResolverMiddleware);
+router.use(requireUserSession);
 router.use(requireModule('customers'));
 
 /**
@@ -28,7 +30,7 @@ router.use(requireModule('customers'));
 
 /**
  * @swagger
- * /api/customers:
+ * /api/v1/customers:
  *   get:
  *     summary: Get all customers
  *     tags: [Customers]
@@ -59,12 +61,12 @@ router.use(requireModule('customers'));
  *       200:
  *         description: Success
  */
-router.get('/', requirePermission(PERMISSIONS.CUSTOMER_READ), getAllCustomers);
-router.post('/', requirePermission(PERMISSIONS.CUSTOMER_CREATE), createCustomer);
+router.get('/', requirePermission(PERMISSIONS.CUSTOMER_READ), validateQuery(listQuerySchema), getAllCustomers);
+router.post('/', requirePermission(PERMISSIONS.CUSTOMER_CREATE), validateBody(partySchema), createCustomer);
 
 /**
  * @swagger
- * /api/customers/{id}:
+ * /api/v1/customers/{id}:
  *   put:
  *     summary: Update a customer
  *     tags: [Customers]
@@ -93,12 +95,12 @@ router.post('/', requirePermission(PERMISSIONS.CUSTOMER_CREATE), createCustomer)
  *         schema:
  *           type: string
  */
-router.put('/:id', requirePermission(PERMISSIONS.CUSTOMER_UPDATE), updateCustomer);
-router.delete('/:id', requirePermission(PERMISSIONS.CUSTOMER_DELETE), deleteCustomer);
+router.put('/:id', requirePermission(PERMISSIONS.CUSTOMER_UPDATE), validateParams(idParamSchema), validateBody(updatePartySchema), updateCustomer);
+router.delete('/:id', requirePermission(PERMISSIONS.CUSTOMER_DELETE), validateParams(idParamSchema), deleteCustomer);
 
 /**
  * @swagger
- * /api/customers/transaction:
+ * /api/v1/customers/transaction:
  *   post:
  *     summary: Add a customer transaction
  *     tags: [Customers]
@@ -126,11 +128,11 @@ router.delete('/:id', requirePermission(PERMISSIONS.CUSTOMER_DELETE), deleteCust
  *       200:
  *         description: Success
  */
-router.post('/transaction', requirePermission(PERMISSIONS.CUSTOMER_PAYMENT), addCustomerTransaction);
+router.post('/transaction', requirePermission(PERMISSIONS.CUSTOMER_PAYMENT), validateBody(customerTransactionSchema), addCustomerTransaction);
 
 /**
  * @swagger
- * /api/customers/{id}/transactions:
+ * /api/v1/customers/{id}/transactions:
  *   get:
  *     summary: Get transactions for a customer
  *     tags: [Customers]
@@ -144,6 +146,6 @@ router.post('/transaction', requirePermission(PERMISSIONS.CUSTOMER_PAYMENT), add
  *         schema:
  *           type: string
  */
-router.get('/:id/transactions', requirePermission(PERMISSIONS.CUSTOMER_READ), getCustomerTransactions);
+router.get('/:id/transactions', requirePermission(PERMISSIONS.CUSTOMER_READ), validateParams(idParamSchema), getCustomerTransactions);
 
 export default router;

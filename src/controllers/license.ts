@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { signLicenseSnapshot, LicenseSnapshot } from '../utils/licenseSigner';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
-import { hashPassword } from '../utils/password';
 import { hashRefreshToken } from '../utils/token';
 import crypto from 'crypto';
 
@@ -185,70 +184,6 @@ export const activateLicense = async (req: Request, res: Response) => {
         expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 Days
       }
     });
-
-    // Ensure default users exist for the company
-    const userCount = await prisma.user.count({
-      where: { company_id: license.company_id }
-    });
-
-    if (userCount === 0) {
-      const defaultBranch = await prisma.branch.findFirst({
-        where: { company_id: license.company_id, is_main: true }
-      }) || await prisma.branch.findFirst({
-        where: { company_id: license.company_id }
-      });
-
-      const branchId = defaultBranch?.id || null;
-      const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
-      const defaultPasswordHash = await hashPassword('admin');
-
-      // Ensure 'Administrator' exists
-      await prisma.user.upsert({
-        where: {
-          company_id_name: {
-            company_id: license.company_id,
-            name: 'Administrator'
-          }
-        },
-        update: {
-          isAdmin: true
-        },
-        create: {
-          company_id: license.company_id,
-          branch_id: branchId,
-          role_id: ownerRole?.id || null,
-          name: 'Administrator',
-          phone: 'admin',
-          password: defaultPasswordHash,
-          isAdmin: true,
-          logs: '[]',
-        }
-      });
-
-      // Ensure 'admin' exists
-      await prisma.user.upsert({
-        where: {
-          company_id_name: {
-            company_id: license.company_id,
-            name: 'admin'
-          }
-        },
-        update: {
-          isAdmin: true
-        },
-        create: {
-          company_id: license.company_id,
-          branch_id: branchId,
-          role_id: ownerRole?.id || null,
-          name: 'admin',
-          phone: 'admin',
-          password: defaultPasswordHash,
-          isAdmin: true,
-          logs: '[]',
-        }
-      });
-      console.log(`Created default Administrator & admin users for company ID ${license.company_id}`);
-    }
 
     // F. Build Snapshot
     const { allowedModules, allowedFeatures } = await getLicensePermissions(license.id, license.plan_id, license.allow_all_modules);

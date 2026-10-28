@@ -66,6 +66,23 @@ export interface SalePaymentResponseDTO {
   amount: number;
 }
 
+export interface SaleRefundResponseDTO {
+  id: number;
+  total: number;
+  reason: string | null;
+  seller_name: string | null;
+  created_at: Date;
+  payments: SalePaymentResponseDTO[];
+  items: Array<{
+    id: number;
+    product_id: number;
+    qty: number;
+    unit_price: number;
+    cost_price: number;
+    product: { id: number; name: string; sku: string | null; barcode: string | null };
+  }>;
+}
+
 export interface SaleResponseDTO {
   id: number;
   invoice_number: string | null;
@@ -85,6 +102,7 @@ export interface SaleResponseDTO {
   due_amount: number;
   payment_method: PaymentMethod;
   payments: SalePaymentResponseDTO[];
+  refunds: SaleRefundResponseDTO[];
   notes: string | null;
   items: SaleItemResponseDTO[];
   created_at: Date;

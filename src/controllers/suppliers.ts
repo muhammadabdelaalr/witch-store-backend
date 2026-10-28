@@ -132,7 +132,8 @@ export const addSupplierTransaction = async (req: Request, res: Response) => {
   try {
     const companyId = req.tenant!.company_id;
     const username = getUsername(req);
-    const { supplier_id, type, amount, notes, date, seller_name, invoice_id } = req.body;
+    const { supplier_id, type, amount, notes, date, invoice_id } = req.body;
+    const seller_name = req.tenant!.user!.name;
 
     if (!supplier_id || !type || amount === undefined) {
       return errorResponse(res, 400, 'BAD_REQUEST', 'supplier_id, type, and amount are required');

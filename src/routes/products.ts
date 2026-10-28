@@ -7,16 +7,18 @@ import {
   deleteProduct,
   adjustStock,
 } from '../controllers/products';
-import { authTokenMiddleware } from '../middleware/auth';
+import { authTokenMiddleware, requireUserSession } from '../middleware/auth';
 import { tenantResolverMiddleware } from '../middleware/tenant';
 import { requireModule } from '../middleware/guards';
 import { requirePermission } from '../middleware/permission';
 import { PERMISSIONS } from '../utils/permissions';
+import { idParamSchema, legacyStockAdjustmentSchema, productListQuerySchema, productLookupQuerySchema, productSchema, updateProductSchema, validateBody, validateParams, validateQuery } from '../middleware/validate';
 
 const router = Router();
 
 router.use(authTokenMiddleware);
 router.use(tenantResolverMiddleware);
+router.use(requireUserSession);
 router.use(requireModule('products'));
 
 /**
@@ -28,7 +30,7 @@ router.use(requireModule('products'));
 
 /**
  * @swagger
- * /api/products:
+ * /api/v1/products:
  *   get:
  *     summary: Get all products
  *     tags: [Products]
@@ -71,11 +73,11 @@ router.use(requireModule('products'));
  *       200:
  *         description: Success
  */
-router.get('/', requirePermission(PERMISSIONS.PRODUCT_READ), getAllProducts);
+router.get('/', requirePermission(PERMISSIONS.PRODUCT_READ), validateQuery(productListQuerySchema), getAllProducts);
 
 /**
  * @swagger
- * /api/products/barcode:
+ * /api/v1/products/barcode:
  *   get:
  *     summary: Get product by barcode
  *     tags: [Products]
@@ -83,12 +85,12 @@ router.get('/', requirePermission(PERMISSIONS.PRODUCT_READ), getAllProducts);
  *       200:
  *         description: Success
  */
-router.get('/barcode', requirePermission(PERMISSIONS.PRODUCT_READ), getProductByBarcode);
-router.post('/', requirePermission(PERMISSIONS.PRODUCT_CREATE), createProduct);
+router.get('/barcode', requirePermission(PERMISSIONS.PRODUCT_READ), validateQuery(productLookupQuerySchema), getProductByBarcode);
+router.post('/', requirePermission(PERMISSIONS.PRODUCT_CREATE), validateBody(productSchema), createProduct);
 
 /**
  * @swagger
- * /api/products/{id}:
+ * /api/v1/products/{id}:
  *   put:
  *     summary: Update a product
  *     tags: [Products]
@@ -141,12 +143,12 @@ router.post('/', requirePermission(PERMISSIONS.PRODUCT_CREATE), createProduct);
  *         schema:
  *           type: string
  */
-router.put('/:id', requirePermission(PERMISSIONS.PRODUCT_UPDATE), updateProduct);
-router.delete('/:id', requirePermission(PERMISSIONS.PRODUCT_DELETE), deleteProduct);
+router.put('/:id', requirePermission(PERMISSIONS.PRODUCT_UPDATE), validateParams(idParamSchema), validateBody(updateProductSchema), updateProduct);
+router.delete('/:id', requirePermission(PERMISSIONS.PRODUCT_DELETE), validateParams(idParamSchema), deleteProduct);
 
 /**
  * @swagger
- * /api/products/{id}/adjust-stock:
+ * /api/v1/products/{id}/adjust-stock:
  *   post:
  *     summary: Adjust product stock
  *     tags: [Products]
@@ -175,6 +177,6 @@ router.delete('/:id', requirePermission(PERMISSIONS.PRODUCT_DELETE), deleteProdu
  *         schema:
  *           type: string
  */
-router.post('/:id/adjust-stock', requirePermission(PERMISSIONS.INVENTORY_ADJUST), adjustStock);
+router.post('/:id/adjust-stock', requirePermission(PERMISSIONS.INVENTORY_ADJUST), validateParams(idParamSchema), validateBody(legacyStockAdjustmentSchema), adjustStock);
 
 export default router;

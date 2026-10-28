@@ -4,8 +4,10 @@ import { Prisma } from '../generated/prisma';
 export const MOVEMENT_TYPES = {
   OPENING: 'OPENING',
   PURCHASE: 'PURCHASE',
+  PURCHASE_REVERSAL: 'PURCHASE_REVERSAL',
   SALE: 'SALE',
-  SALE_RETURN: 'SALE_RETURN',
+  SALE_CANCEL: 'SALE_CANCEL',
+  REFUND: 'REFUND',
   PURCHASE_RETURN: 'PURCHASE_RETURN',
   ADJUSTMENT_IN: 'ADJUSTMENT_IN',
   ADJUSTMENT_OUT: 'ADJUSTMENT_OUT',
@@ -31,7 +33,7 @@ export interface ApplyMovementParams {
 export class InventoryService {
   /**
    * Applies an inventory movement within a transaction (or uses global prisma client).
-   * Atomically updates ProductStock, syncs Product.stock_qty, and records the movement ledger entry.
+   * Atomically updates ProductStock and records the immutable movement ledger entry.
    */
   static async applyMovement(
     tx: Prisma.TransactionClient,
@@ -57,7 +59,7 @@ export class InventoryService {
     // 1. Ensure Product belongs to company
     const product = await tx.product.findFirst({
       where: { id: product_id, company_id },
-      select: { id: true, name: true, stock_qty: true, low_stock_threshold: true },
+      select: { id: true, name: true, low_stock_threshold: true },
     });
 
     if (!product) {
@@ -105,19 +107,7 @@ export class InventoryService {
       data: { stock_qty: newStockQty },
     });
 
-    // 4. Synchronize legacy Product.stock_qty across all branches for this company
-    const allBranchStocks = await tx.productStock.aggregate({
-      where: { company_id, product_id },
-      _sum: { stock_qty: true },
-    });
-    const totalCompanyStock = allBranchStocks._sum.stock_qty ?? newStockQty;
-
-    await tx.product.update({
-      where: { id: product_id },
-      data: { stock_qty: totalCompanyStock },
-    });
-
-    // 5. Create immutable movement ledger record
+    // 4. Create immutable movement ledger record
     const movement = await tx.inventoryMovement.create({
       data: {
         company_id,
@@ -176,6 +166,16 @@ export class InventoryService {
       whereClause.category_id = Number(filters.category_id);
     }
 
+    if (filters.low_stock_only) {
+      whereClause.product_stocks = {
+        some: {
+          company_id: companyId,
+          branch_id: branchId,
+          stock_qty: { lte: prisma.productStock.fields.low_stock_threshold },
+        },
+      };
+    }
+
     const [totalProducts, products] = await Promise.all([
       prisma.product.count({ where: whereClause }),
       prisma.product.findMany({
@@ -212,12 +212,8 @@ export class InventoryService {
       };
     });
 
-    const results = filters.low_stock_only
-      ? formatted.filter((item) => item.is_low_stock)
-      : formatted;
-
     return {
-      data: results,
+      data: formatted,
       meta: {
         page,
         limit,
@@ -344,7 +340,12 @@ export class InventoryService {
     const threshold = product.product_stocks[0]?.low_stock_threshold ?? (product.low_stock_threshold || 5);
 
     // Aggregate lifetime inflows and outflows
-    const [inflowAgg, outflowAgg, recentMovements] = await Promise.all([
+    const movementWhere = {
+      company_id: companyId,
+      branch_id: branchId,
+      product_id: productId,
+    };
+    const [inflowAgg, outflowAgg, recentMovements, totalMovementsCount] = await Promise.all([
       prisma.inventoryMovement.aggregate({
         where: {
           company_id: companyId,
@@ -364,14 +365,11 @@ export class InventoryService {
         _sum: { quantity_delta: true },
       }),
       prisma.inventoryMovement.findMany({
-        where: {
-          company_id: companyId,
-          branch_id: branchId,
-          product_id: productId,
-        },
+        where: movementWhere,
         orderBy: { created_at: 'desc' },
         take: 50,
       }),
+      prisma.inventoryMovement.count({ where: movementWhere }),
     ]);
 
     const cardUserIds = [...new Set(recentMovements.map((m) => m.user_id).filter((id): id is number => typeof id === 'number'))];
@@ -401,7 +399,7 @@ export class InventoryService {
         total_in: inflowAgg._sum.quantity_delta ?? 0,
         total_out: Math.abs(outflowAgg._sum.quantity_delta ?? 0),
         net_balance: currentStock,
-        total_movements_count: recentMovements.length,
+        total_movements_count: totalMovementsCount,
       },
       movements: recentMovements.map((m) => ({
         ...m,

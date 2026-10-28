@@ -4,7 +4,7 @@ import { InventoryService } from '../services/inventory.service';
 export const getBalances = async (req: Request, res: Response): Promise<void> => {
   try {
     const companyId = req.tenant!.company_id;
-    const branchId = req.tenant!.branch_id || 1;
+    const branchId = req.tenant!.branch_id;
 
     const result = await InventoryService.getBalances(companyId, branchId, {
       page: req.query.page ? Number(req.query.page) : undefined,
@@ -32,7 +32,7 @@ export const getBalances = async (req: Request, res: Response): Promise<void> =>
 export const getMovements = async (req: Request, res: Response): Promise<void> => {
   try {
     const companyId = req.tenant!.company_id;
-    const branchId = req.tenant!.branch_id || 1;
+    const branchId = req.tenant!.branch_id;
 
     const result = await InventoryService.getMovements(companyId, branchId, {
       page: req.query.page ? Number(req.query.page) : undefined,
@@ -61,7 +61,7 @@ export const getMovements = async (req: Request, res: Response): Promise<void> =
 export const getProductStockCard = async (req: Request, res: Response): Promise<void> => {
   try {
     const companyId = req.tenant!.company_id;
-    const branchId = req.tenant!.branch_id || 1;
+    const branchId = req.tenant!.branch_id;
     const paramId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const productId = parseInt(paramId, 10);
 
@@ -101,7 +101,7 @@ export const getProductStockCard = async (req: Request, res: Response): Promise<
 export const createAdjustment = async (req: Request, res: Response): Promise<void> => {
   try {
     const companyId = req.tenant!.company_id;
-    const branchId = req.tenant!.branch_id || 1;
+    const branchId = req.tenant!.branch_id;
     const userId = (req as any).user?.id || req.tenant?.user?.id;
 
     const { product_id, type, reason, notes } = req.body;
@@ -174,7 +174,7 @@ export const createAdjustment = async (req: Request, res: Response): Promise<voi
 export const getLowStock = async (req: Request, res: Response): Promise<void> => {
   try {
     const companyId = req.tenant!.company_id;
-    const branchId = req.tenant!.branch_id || 1;
+    const branchId = req.tenant!.branch_id;
 
     const lowStockItems = await InventoryService.getLowStock(companyId, branchId);
 

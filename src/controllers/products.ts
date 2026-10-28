@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma, logUserActivity, getUsername } from '../prisma';
+import { InventoryService, MOVEMENT_TYPES } from '../services/inventory.service';
 
 function success<T>(res: Response, data: T, status = 200) {
   return res.status(status).json({ success: true, data });
@@ -238,7 +239,6 @@ export const createProduct = async (req: Request, res: Response) => {
           description: description || null,
           cost_price: cost_price ? parseFloat(cost_price) : 0,
           sell_price: sell_price ? parseFloat(sell_price) : 0,
-          stock_qty: stock_qty ? parseInt(stock_qty) : 0,
           low_stock_threshold: low_stock_threshold ? parseInt(low_stock_threshold) : 5,
           is_active: is_active !== undefined ? Boolean(is_active) : true,
           image_path: image_path || null,
@@ -255,9 +255,24 @@ export const createProduct = async (req: Request, res: Response) => {
             company_id: companyId,
             branch_id: b.id,
             product_id: prod.id,
-            stock_qty: b.id === branchId ? (stock_qty ? parseInt(stock_qty) : 0) : 0,
+            stock_qty: 0,
             low_stock_threshold: low_stock_threshold ? parseInt(low_stock_threshold) : 5,
           },
+        });
+      }
+
+      const openingQty = stock_qty ? parseInt(stock_qty, 10) : 0;
+      if (openingQty > 0) {
+        await InventoryService.applyMovement(tx, {
+          company_id: companyId,
+          branch_id: branchId,
+          product_id: prod.id,
+          movement_type: MOVEMENT_TYPES.OPENING,
+          quantity_delta: openingQty,
+          reference_type: 'product_opening',
+          reference_id: prod.id,
+          user_id: req.tenant?.user?.id,
+          notes: 'Opening stock',
         });
       }
 
@@ -326,6 +341,9 @@ export const updateProduct = async (req: Request, res: Response) => {
       });
 
       if (req.body.stock_qty !== undefined || req.body.low_stock_threshold !== undefined) {
+        const currentStock = await tx.productStock.findUnique({
+          where: { company_id_branch_id_product_id: { company_id: companyId, branch_id: branchId, product_id: id } },
+        });
         await tx.productStock.upsert({
           where: {
             company_id_branch_id_product_id: {
@@ -335,17 +353,35 @@ export const updateProduct = async (req: Request, res: Response) => {
             },
           },
           update: {
-            stock_qty: req.body.stock_qty !== undefined ? parseInt(req.body.stock_qty) : undefined,
             low_stock_threshold: req.body.low_stock_threshold !== undefined ? parseInt(req.body.low_stock_threshold) : undefined,
           },
           create: {
             company_id: companyId,
             branch_id: branchId,
             product_id: id,
-            stock_qty: req.body.stock_qty !== undefined ? parseInt(req.body.stock_qty) : 0,
+            stock_qty: 0,
             low_stock_threshold: req.body.low_stock_threshold !== undefined ? parseInt(req.body.low_stock_threshold) : 5,
           },
         });
+        if (req.body.stock_qty !== undefined) {
+          const target = parseInt(req.body.stock_qty, 10);
+          const current = currentStock?.stock_qty ?? 0;
+          const delta = target - current;
+          if (!Number.isInteger(target) || target < 0) throw new Error('Stock quantity must be a non-negative integer');
+          if (delta !== 0) {
+            await InventoryService.applyMovement(tx, {
+              company_id: companyId,
+              branch_id: branchId,
+              product_id: id,
+              movement_type: delta > 0 ? MOVEMENT_TYPES.ADJUSTMENT_IN : MOVEMENT_TYPES.ADJUSTMENT_OUT,
+              quantity_delta: delta,
+              reference_type: 'product_edit',
+              reference_id: id,
+              user_id: req.tenant?.user?.id,
+              notes: 'Stock corrected from product edit',
+            });
+          }
+        }
       }
 
       return prod;
@@ -429,25 +465,18 @@ export const adjustStock = async (req: Request, res: Response) => {
       return errorResponse(res, 404, 'NOT_FOUND', 'Product not found');
     }
 
-    const updatedStock = await prisma.productStock.upsert({
-      where: {
-        company_id_branch_id_product_id: {
-          company_id: companyId,
-          branch_id: branchId,
-          product_id: id,
-        },
-      },
-      update: {
-        stock_qty: { increment: parseInt(delta) },
-      },
-      create: {
-        company_id: companyId,
-        branch_id: branchId,
-        product_id: id,
-        stock_qty: parseInt(delta),
-        low_stock_threshold: 5,
-      },
-    });
+    const movementResult = await prisma.$transaction((tx) => InventoryService.applyMovement(tx, {
+      company_id: companyId,
+      branch_id: branchId,
+      product_id: id,
+      movement_type: parseInt(delta, 10) > 0 ? MOVEMENT_TYPES.ADJUSTMENT_IN : MOVEMENT_TYPES.ADJUSTMENT_OUT,
+      quantity_delta: parseInt(delta, 10),
+      reference_type: 'legacy_adjust_stock',
+      reference_id: id,
+      user_id: req.tenant?.user?.id,
+      notes: String(req.body.reason || 'Manual stock adjustment'),
+    }));
+    const updatedStock = movementResult.stock;
 
     await logUserActivity(companyId, username, 'ADJUST_STOCK', {
       id: product.id,

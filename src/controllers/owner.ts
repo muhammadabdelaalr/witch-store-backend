@@ -312,7 +312,7 @@ export const createCompany = async (req: Request, res: Response) => {
       res.status(400).json({ error: 'BAD_REQUEST', message: 'رقم هاتف المشرف/المسؤول حقل مطلوب.' });
       return;
     }
-    if (!password || password.trim().length === 0) {
+    if (!password || password.trim().length < 8 || password.trim().length > 128 || ['admin', 'password', '12345678'].includes(password.trim().toLowerCase())) {
       res.status(400).json({ error: 'BAD_REQUEST', message: 'كلمة مرور المشرف مطلوبة.' });
       return;
     }
@@ -373,7 +373,6 @@ export const createCompany = async (req: Request, res: Response) => {
           password: adminPasswordHash,
           phone: finalSupervisorPhone,
           isAdmin: true,
-          logs: '[]',
         },
       });
 
@@ -463,6 +462,10 @@ export const updateCompany = async (req: Request, res: Response) => {
     }
     if (trimmedEmail !== undefined) {
       userUpdateData.email = trimmedEmail;
+    }
+    if (password && (password.trim().length < 8 || password.trim().length > 128 || ['admin', 'password', '12345678'].includes(password.trim().toLowerCase()))) {
+      res.status(400).json({ error: 'WEAK_PASSWORD', message: 'Password must be 8-128 characters and cannot be a known default.' });
+      return;
     }
     if (password && password.trim().length > 0) {
       userUpdateData.password = await hashPassword(password.trim());

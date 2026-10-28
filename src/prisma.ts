@@ -86,19 +86,9 @@ const adapter = new PrismaPg(pool);
 
 export const prisma = new PrismaClient({ adapter });
 
-// Helper to get username from request headers safely
-export function getUsername(req: {
-  headers: Record<string, string | string[] | undefined>;
-}): string {
-  const header = req.headers["x-user-name"];
-  const rawUsername = Array.isArray(header)
-    ? header[0] || "System"
-    : header || "System";
-  try {
-    return decodeURIComponent(rawUsername);
-  } catch {
-    return rawUsername;
-  }
+// Compatibility helper for older controllers. Identity comes from the signed user token.
+export function getUsername(req: { tenant?: { user?: { name: string } } }): string {
+  return req.tenant?.user?.name || 'System';
 }
 
 // Helper functions for user logging
@@ -116,18 +106,17 @@ export async function logUserActivity(
         name: username,
       },
     });
-    if (user) {
-      const logs = JSON.parse(user.logs || "[]");
-      logs.push({
+    if (!user || !company_id) return;
+    await prisma.tenantAuditLog.create({
+      data: {
+        company_id,
+        branch_id: user.branch_id,
+        user_id: user.id,
         action,
-        details,
-        timestamp: new Date().toISOString(),
-      });
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { logs: JSON.stringify(logs) },
-      });
-    }
+        entity_type: 'legacy_activity',
+        details: details ?? undefined,
+      },
+    });
   } catch (error) {
     console.error(`Failed to log user activity for ${username}:`, error);
   }

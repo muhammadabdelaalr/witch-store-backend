@@ -1,5 +1,7 @@
 import { Prisma, PaymentMethod, SaleType } from '../generated/prisma';
 import { prisma } from '../prisma';
+import { InventoryService, MOVEMENT_TYPES } from './inventory.service';
+import { TenantContext } from '../types/tenant';
 import {
   CreateSaleDTO,
   HoldSaleDTO,
@@ -7,22 +9,6 @@ import {
   SaleResponseDTO,
   SaleListItemDTO,
 } from '../dto/sale.dto';
-
-export interface TenantContext {
-  company_id: number;
-  company_name: string;
-  branch_id: number;
-  user?: {
-    id: number;
-    name: string;
-    role: {
-      id: number;
-      key: string;
-      name: string;
-      permissions: string[];
-    } | null;
-  };
-}
 
 class SaleError extends Error {
   code: string;
@@ -41,9 +27,29 @@ function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+async function lockOpenShift(
+  tx: Prisma.TransactionClient,
+  companyId: number,
+  branchId: number,
+  userId?: number,
+): Promise<{ id: number } | null> {
+  if (!userId) return null;
+  const rows = await tx.$queryRaw<Array<{ id: number }>>`
+    SELECT id FROM shifts
+    WHERE company_id = ${companyId}
+      AND branch_id = ${branchId}
+      AND user_id = ${userId}
+      AND status = 'open'
+    ORDER BY opened_at DESC
+    LIMIT 1
+    FOR UPDATE
+  `;
+  return rows[0] || null;
+}
+
 function buildSaleResponse(sale: any): SaleResponseDTO {
   const subtotal = sale.items.reduce(
-    (sum: number, item: any) => sum + item.unit_price * item.qty,
+    (sum: number, item: any) => sum + (item.unit_price - (item.line_discount || 0)) * item.qty,
     0
   );
   const discountAmount = round2(subtotal * (sale.discount / 100));
@@ -57,7 +63,12 @@ function buildSaleResponse(sale: any): SaleResponseDTO {
   );
   const amountPaid = round2(sale.amount_paid ?? paidFromPayments);
   const changeDue = round2(Math.max(0, amountPaid - total));
-  const dueAmount = round2(Math.max(0, total - amountPaid));
+  const deferredDue = round2((sale.sale_payments || [])
+    .filter((payment: any) => payment.method === 'deferred')
+    .reduce((sum: number, payment: any) => sum + payment.amount, 0));
+  const dueAmount = (sale.sale_payments || []).length > 0
+    ? deferredDue
+    : round2(Math.max(0, total - amountPaid));
 
   return {
     id: sale.id,
@@ -82,6 +93,31 @@ function buildSaleResponse(sale: any): SaleResponseDTO {
       method: p.method,
       amount: p.amount,
     })),
+    refunds: (sale.refunds || []).map((refund: any) => ({
+      id: refund.id,
+      total: refund.total,
+      reason: refund.reason || null,
+      seller_name: refund.seller_name || null,
+      created_at: refund.created_at,
+      payments: (refund.payments || []).map((payment: any) => ({
+        id: payment.id,
+        method: payment.method,
+        amount: payment.amount,
+      })),
+      items: (refund.items || []).map((item: any) => ({
+        id: item.id,
+        product_id: item.product_id,
+        qty: item.qty,
+        unit_price: item.unit_price,
+        cost_price: item.cost_price,
+        product: {
+          id: item.product.id,
+          name: item.product.name,
+          sku: item.product.sku,
+          barcode: item.product.barcode,
+        },
+      })),
+    })),
     notes: sale.notes || null,
     items: sale.items.map((item: any) => ({
       id: item.id,
@@ -90,7 +126,7 @@ function buildSaleResponse(sale: any): SaleResponseDTO {
       unit_price: item.unit_price,
       cost_price: item.cost_price,
       line_discount: item.line_discount || 0,
-      line_total: round2(item.unit_price * item.qty),
+      line_total: round2((item.unit_price - (item.line_discount || 0)) * item.qty),
       product: {
         id: item.product.id,
         name: item.product.name,
@@ -103,23 +139,15 @@ function buildSaleResponse(sale: any): SaleResponseDTO {
 }
 
 async function generateInvoiceNumber(companyId: number, tx: Prisma.TransactionClient): Promise<string> {
-  // Format: INV-{company_id}-{timestamp}-{random}
-  // For production, consider a dedicated counter table.
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-  const randomPart = Math.floor(1000 + Math.random() * 9000);
-  const candidate = `INV-${companyId}-${datePart}-${randomPart}`;
-
-  const existing = await tx.sale.findFirst({
-    where: { company_id: companyId, invoice_number: candidate },
-    select: { id: true },
+  const counter = await tx.invoiceCounter.upsert({
+    where: { company_id_business_date: { company_id: companyId, business_date: datePart } },
+    create: { company_id: companyId, business_date: datePart, next_value: 2 },
+    update: { next_value: { increment: 1 } },
   });
-
-  if (existing) {
-    return generateInvoiceNumber(companyId, tx);
-  }
-
-  return candidate;
+  const sequence = counter.next_value - 1;
+  return `INV-${companyId}-${datePart}-${String(sequence).padStart(6, '0')}`;
 }
 
 async function ensureProductStock(
@@ -275,7 +303,7 @@ async function validateAndLoadProducts(
   return verifiedItems;
 }
 
-function calculateTotals(
+export function calculateTotals(
   items: { qty: number; unit_price: number; line_discount: number }[],
   discountPercent: number,
   taxPercent: number
@@ -298,27 +326,69 @@ function calculateTotals(
   };
 }
 
+export function calculateCustomerDebt(total: number, tendered: number): number {
+  return round2(Math.max(0, total - tendered));
+}
+
+export function calculateAppliedPayment(
+  method: PaymentMethod,
+  total: number,
+  tendered: number,
+): number {
+  return method === 'deferred' ? round2(total) : round2(Math.min(tendered, total));
+}
+
+export function buildFallbackPayments(
+  method: PaymentMethod,
+  total: number,
+  tendered: number,
+): Array<{ method: PaymentMethod; amount: number }> {
+  if (method !== 'deferred') {
+    return [{ method, amount: calculateAppliedPayment(method, total, tendered) }];
+  }
+  const cashApplied = round2(Math.min(Math.max(0, tendered), total));
+  const debt = round2(total - cashApplied);
+  return [
+    ...(cashApplied > 0 ? [{ method: PaymentMethod.cash, amount: cashApplied }] : []),
+    ...(debt > 0 ? [{ method: PaymentMethod.deferred, amount: debt }] : []),
+  ];
+}
+
+export function calculateDefaultTendered(
+  payments: Array<{ method: PaymentMethod; amount: number }>,
+  primaryMethod: PaymentMethod,
+  total: number,
+): number {
+  if (payments.length > 0) {
+    return round2(payments
+      .filter((payment) => payment.method !== 'deferred')
+      .reduce((sum, payment) => sum + payment.amount, 0));
+  }
+  return primaryMethod === 'deferred' ? 0 : round2(total);
+}
+
 async function applyCustomerBalanceUpdate(
-  sale: { id: number; customer_id: number | null; total: number; amount_paid: number },
+  sale: { id: number; customer_id: number | null; debt_amount: number },
   companyId: number,
   sellerName: string | undefined,
   tx: Prisma.TransactionClient
 ) {
   if (!sale.customer_id) return;
 
-  const unpaid = round2(sale.total - sale.amount_paid);
-  if (Math.abs(unpaid) < 0.001) return;
-
-  const type = unpaid > 0 ? 'debt' : 'payment';
-  const amount = Math.abs(unpaid);
+  // Tender above the invoice total is change due, never a customer credit.
+  const unpaid = round2(Math.max(0, sale.debt_amount));
+  if (unpaid < 0.001) return;
 
   await tx.customerTransaction.create({
     data: {
       company_id: companyId,
       customer_id: sale.customer_id,
-      type,
-      amount,
-      notes: `${type === 'debt' ? 'Debt' : 'Payment'} from Sale #${sale.id}`,
+      type: 'debt',
+      amount: unpaid,
+      notes: `Debt from Sale #${sale.id}`,
+      source_type: 'sale',
+      source_id: sale.id,
+      idempotency_key: `sale:${sale.id}:balance`,
     },
   });
 
@@ -345,14 +415,27 @@ async function createSaleCore(
   const tax = round2(parseFloat(String(data.tax || 0)) || 0);
   const saleType = (data.sale_type || 'retail') as SaleType;
   const customerId = data.customer_id ? parseInt(String(data.customer_id)) : null;
-  const sellerName = data.seller_name || tenant.user?.name;
+  const sellerName = tenant.user?.name;
 
   if (data.payment_method === 'installment') {
     throw new SaleError('NOT_SUPPORTED', 'Installments are not supported in Phase 3', 400);
   }
+  if (
+    status === 'completed' &&
+    (data.payment_method === 'deferred' || data.payments?.some((payment) => payment.method === 'deferred')) &&
+    !customerId
+  ) {
+    throw new SaleError('CUSTOMER_REQUIRED_FOR_DEFERRED', 'A customer is required for deferred payment', 400);
+  }
 
   const result = await prisma.$transaction(
     async (tx) => {
+      const openShift = status === 'completed'
+        ? await lockOpenShift(tx, companyId, branchId, userId)
+        : null;
+      if (status === 'completed' && !openShift) {
+        throw new SaleError('OPEN_SHIFT_REQUIRED', 'An open shift is required to complete a sale', 409);
+      }
       // Idempotency check
       if (data.idempotency_key) {
         const existing = await tx.sale.findFirst({
@@ -416,7 +499,7 @@ async function createSaleCore(
           : round2(
               data.amount_paid !== undefined && data.amount_paid !== null
                 ? parseFloat(String(data.amount_paid))
-                : payments.reduce((sum, p) => sum + p.amount, total)
+                : calculateDefaultTendered(payments, primaryMethod, total)
             );
 
       if (status === 'completed' && primaryMethod !== 'deferred' && amountPaid < total) {
@@ -432,6 +515,7 @@ async function createSaleCore(
         data: {
           company_id: companyId,
           branch_id: branchId,
+          shift_id: openShift?.id || null,
           customer_id: customerId,
           customer_name: data.customer_name || null,
           invoice_number: invoiceNumber,
@@ -447,6 +531,7 @@ async function createSaleCore(
           idempotency_key: data.idempotency_key || null,
           items: {
             create: verifiedItems.map((item) => ({
+              company_id: companyId,
               product_id: item.product_id,
               qty: item.qty,
               unit_price: item.unit_price,
@@ -461,72 +546,46 @@ async function createSaleCore(
         },
       });
 
-      // Create sale payments
-      if (status === 'completed' && payments.length > 0) {
+      const appliedPayments = status === 'completed'
+        ? (payments.length > 0 ? payments : buildFallbackPayments(primaryMethod, total, amountPaid))
+        : [];
+
+      // Create the applied payment allocation; cash tender/change stays on Sale.amount_paid.
+      if (appliedPayments.length > 0) {
         await tx.salePayment.createMany({
-          data: payments.map((p) => ({
+          data: appliedPayments.map((p) => ({
             sale_id: sale.id,
             company_id: companyId,
             method: p.method,
             amount: p.amount,
           })),
         });
-      } else if (status === 'completed') {
-        await tx.salePayment.create({
-          data: {
-            sale_id: sale.id,
-            company_id: companyId,
-            method: primaryMethod,
-            amount: amountPaid,
-          },
-        });
       }
 
       // Stock + inventory movement for completed sales only
       if (status === 'completed') {
         for (const item of verifiedItems) {
-          const updatedStock = await tx.productStock.update({
-            where: {
-              company_id_branch_id_product_id: {
-                company_id: companyId,
-                branch_id: branchId,
-                product_id: item.product_id,
-              },
-            },
-            data: {
-              stock_qty: {
-                decrement: item.qty,
-              },
-            },
+          await InventoryService.applyMovement(tx, {
+            company_id: companyId,
+            branch_id: branchId,
+            product_id: item.product_id,
+            movement_type: MOVEMENT_TYPES.SALE,
+            quantity_delta: -item.qty,
+            reference_type: 'sale',
+            reference_id: sale.id,
+            user_id: userId,
+            notes: `Sale #${sale.id}`,
           });
-
-          // Backward-compatible fallback column
-          await tx.product.update({
-            where: { id: item.product_id },
-            data: {
-              stock_qty: {
-                decrement: item.qty,
-              },
-            },
-          });
-
-          await recordInventoryMovement(
-            companyId,
-            branchId,
-            item.product_id,
-            'SALE',
-            -item.qty,
-            updatedStock.stock_qty,
-            'sale',
-            sale.id,
-            userId,
-            `Sale #${sale.id}`,
-            tx
-          );
         }
 
         await applyCustomerBalanceUpdate(
-          { id: sale.id, customer_id: customerId, total, amount_paid: amountPaid },
+          {
+            id: sale.id,
+            customer_id: customerId,
+            debt_amount: appliedPayments
+              .filter((payment) => payment.method === 'deferred')
+              .reduce((sum, payment) => sum + payment.amount, 0),
+          },
           companyId,
           sellerName,
           tx
@@ -593,16 +652,24 @@ export async function listHeldSales(tenant: TenantContext): Promise<any[]> {
 
 export async function resumeSale(saleId: number, tenant: TenantContext): Promise<SaleResponseDTO> {
   const companyId = tenant.company_id;
+  const branchId = tenant.branch_id;
 
   const sale = await prisma.sale.findFirst({
     where: {
       id: saleId,
       company_id: companyId,
+      branch_id: branchId,
       status: 'held',
     },
     include: {
       items: { include: { product: true } },
       sale_payments: true,
+      refunds: {
+        include: {
+          payments: true,
+          items: { include: { product: true } },
+        },
+      },
       customer: true,
     },
   });
@@ -611,16 +678,7 @@ export async function resumeSale(saleId: number, tenant: TenantContext): Promise
     throw new SaleError('SALE_NOT_FOUND', 'Held sale not found', 404);
   }
 
-  const response = buildSaleResponse(sale);
-
-  // Remove the held sale from the database so it no longer remains on hold
-  await prisma.$transaction([
-    prisma.salePayment.deleteMany({ where: { sale_id: sale.id } }),
-    prisma.saleItem.deleteMany({ where: { sale_id: sale.id } }),
-    prisma.sale.delete({ where: { id: sale.id } }),
-  ]);
-
-  return response;
+  return buildSaleResponse(sale);
 }
 
 export async function completeHeldSale(
@@ -635,12 +693,38 @@ export async function completeHeldSale(
   return prisma.$transaction(
     async (tx) => {
       const existing = await tx.sale.findFirst({
-        where: { id: saleId, company_id: companyId, status: 'held' },
+        where: { id: saleId, company_id: companyId, branch_id: branchId },
         include: { items: { include: { product: true } }, customer: true },
       });
 
       if (!existing) {
         throw new SaleError('SALE_NOT_FOUND', 'Held sale not found', 404);
+      }
+      if (existing.status !== 'held') {
+        throw new SaleError('HELD_SALE_ALREADY_COMPLETED', 'This held sale is no longer available for completion', 409);
+      }
+
+      // Atomically claim this held sale. A concurrent checkout waits on the row
+      // and then receives count=0 after the winning transaction commits.
+      const claim = await tx.sale.updateMany({
+        where: { id: saleId, company_id: companyId, branch_id: branchId, status: 'held' },
+        data: { status: 'completing' },
+      });
+      if (claim.count !== 1) {
+        throw new SaleError('HELD_SALE_ALREADY_COMPLETED', 'This held sale is already being completed', 409);
+      }
+
+      const completedCustomerId = data.customer_id || existing.customer_id;
+      if (
+        (data.payment_method === 'deferred' || data.payments?.some((payment) => payment.method === 'deferred')) &&
+        !completedCustomerId
+      ) {
+        throw new SaleError('CUSTOMER_REQUIRED_FOR_DEFERRED', 'A customer is required for deferred payment', 400);
+      }
+
+      const openShift = await lockOpenShift(tx, companyId, branchId, userId);
+      if (!openShift) {
+        throw new SaleError('OPEN_SHIFT_REQUIRED', 'An open shift is required to complete a sale', 409);
       }
 
       // Remove old held items so we can re-validate current stock/prices
@@ -679,7 +763,12 @@ export async function completeHeldSale(
       const amountPaid =
         data.amount_paid !== undefined && data.amount_paid !== null
           ? round2(parseFloat(String(data.amount_paid)))
-          : payments.reduce((sum, p) => sum + p.amount, total);
+          : calculateDefaultTendered(payments, primaryMethod, total);
+
+      const paymentsTotal = round2(payments.reduce((sum, payment) => sum + payment.amount, 0));
+      if (payments.length > 0 && Math.abs(paymentsTotal - total) > 0.01) {
+        throw new SaleError('PAYMENT_MISMATCH', 'Payments total does not match sale total');
+      }
 
       if (primaryMethod !== 'deferred' && amountPaid < total) {
         throw new SaleError('INSUFFICIENT_PAYMENT', 'Amount paid is less than total');
@@ -691,6 +780,7 @@ export async function completeHeldSale(
         where: { id: existing.id },
         data: {
           invoice_number: invoiceNumber,
+          shift_id: openShift.id,
           status: 'completed',
           total,
           discount,
@@ -699,14 +789,16 @@ export async function completeHeldSale(
           payment_method: primaryMethod,
           sale_type: (data.sale_type || existing.sale_type || 'retail') as SaleType,
           notes: data.notes || existing.notes,
-          seller_name: data.seller_name || existing.seller_name || tenant.user?.name,
+          seller_name: tenant.user?.name,
           customer_id: data.customer_id || existing.customer_id,
           customer_name: data.customer_name || existing.customer_name,
+          idempotency_key: data.idempotency_key || existing.idempotency_key,
         },
       });
 
       await tx.saleItem.createMany({
         data: verifiedItems.map((item) => ({
+          company_id: companyId,
           sale_id: existing.id,
           product_id: item.product_id,
           qty: item.qty,
@@ -716,62 +808,44 @@ export async function completeHeldSale(
         })),
       });
 
-      if (payments.length > 0) {
+      const appliedPayments = payments.length > 0
+        ? payments
+        : buildFallbackPayments(primaryMethod, total, amountPaid);
+      if (appliedPayments.length > 0) {
         await tx.salePayment.createMany({
-          data: payments.map((p) => ({
+          data: appliedPayments.map((p) => ({
             sale_id: existing.id,
             company_id: companyId,
             method: p.method,
             amount: p.amount,
           })),
         });
-      } else {
-        await tx.salePayment.create({
-          data: {
-            sale_id: existing.id,
-            company_id: companyId,
-            method: primaryMethod,
-            amount: amountPaid,
-          },
-        });
       }
 
       for (const item of verifiedItems) {
-        const updatedStock = await tx.productStock.update({
-          where: {
-            company_id_branch_id_product_id: {
-              company_id: companyId,
-              branch_id: branchId,
-              product_id: item.product_id,
-            },
-          },
-          data: { stock_qty: { decrement: item.qty } },
+        await InventoryService.applyMovement(tx, {
+          company_id: companyId,
+          branch_id: branchId,
+          product_id: item.product_id,
+          movement_type: MOVEMENT_TYPES.SALE,
+          quantity_delta: -item.qty,
+          reference_type: 'sale',
+          reference_id: existing.id,
+          user_id: userId,
+          notes: `Sale #${existing.id}`,
         });
-
-        await tx.product.update({
-          where: { id: item.product_id },
-          data: { stock_qty: { decrement: item.qty } },
-        });
-
-        await recordInventoryMovement(
-          companyId,
-          branchId,
-          item.product_id,
-          'SALE',
-          -item.qty,
-          updatedStock.stock_qty,
-          'sale',
-          existing.id,
-          userId,
-          `Sale #${existing.id}`,
-          tx
-        );
       }
 
       await applyCustomerBalanceUpdate(
-        { id: existing.id, customer_id: existing.customer_id, total, amount_paid: amountPaid },
+        {
+          id: existing.id,
+          customer_id: completedCustomerId,
+          debt_amount: appliedPayments
+            .filter((payment) => payment.method === 'deferred')
+            .reduce((sum, payment) => sum + payment.amount, 0),
+        },
         companyId,
-        data.seller_name || tenant.user?.name,
+        tenant.user?.name,
         tx
       );
 
@@ -789,7 +863,7 @@ export async function completeHeldSale(
     {
       maxWait: 15000,
       timeout: 30000,
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     }
   );
 }
@@ -802,12 +876,12 @@ export async function cancelSale(
   const companyId = tenant.company_id;
   const branchId = tenant.branch_id;
   const userId = tenant.user?.id;
-  const cancelledBy = data.cancelled_by || tenant.user?.name;
+  const cancelledBy = tenant.user?.name;
 
   return prisma.$transaction(
     async (tx) => {
       const sale = await tx.sale.findFirst({
-        where: { id: saleId, company_id: companyId, status: 'completed' },
+        where: { id: saleId, company_id: companyId, branch_id: branchId, status: 'completed' },
         include: { items: { include: { product: true } }, sale_payments: true, customer: true },
       });
 
@@ -829,66 +903,61 @@ export async function cancelSale(
       }
 
       for (const item of sale.items) {
-        const updatedStock = await tx.productStock.upsert({
-          where: {
-            company_id_branch_id_product_id: {
-              company_id: companyId,
-              branch_id: branchId,
-              product_id: item.product_id,
-            },
-          },
-          update: {
-            stock_qty: {
-              increment: item.qty,
-            },
-          },
-          create: {
-            company_id: companyId,
-            branch_id: branchId,
-            product_id: item.product_id,
-            stock_qty: item.qty,
-            low_stock_threshold: 5,
-          },
+        await InventoryService.applyMovement(tx, {
+          company_id: companyId,
+          branch_id: branchId,
+          product_id: item.product_id,
+          movement_type: MOVEMENT_TYPES.SALE_CANCEL,
+          quantity_delta: item.qty,
+          reference_type: 'sale_cancel',
+          reference_id: sale.id,
+          user_id: userId,
+          notes: `Cancel Sale #${sale.id}`,
         });
-
-        await tx.product.update({
-          where: { id: item.product_id },
-          data: { stock_qty: { increment: item.qty } },
-        });
-
-        await recordInventoryMovement(
-          companyId,
-          branchId,
-          item.product_id,
-          'SALE_CANCEL',
-          item.qty,
-          updatedStock.stock_qty,
-          'sale',
-          sale.id,
-          userId,
-          `Cancel Sale #${sale.id}`,
-          tx
-        );
       }
 
-      // Reverse customer balance if there was deferred/partial debt
+      // Reverse the original immutable customer ledger entry exactly once.
       if (sale.customer_id) {
-        const unpaid = round2(sale.total - sale.amount_paid);
-        if (Math.abs(unpaid) > 0.001) {
-          await tx.customerTransaction.create({
+        const originalEntry = await tx.customerTransaction.findFirst({
+          where: { company_id: companyId, customer_id: sale.customer_id, source_type: 'sale', source_id: sale.id, reversal_of_id: null },
+          orderBy: { id: 'asc' },
+        });
+        if (originalEntry) {
+          const alreadyReversed = await tx.customerTransaction.findFirst({ where: { reversal_of_id: originalEntry.id } });
+          if (!alreadyReversed) {
+            await tx.customerTransaction.create({
+              data: {
+                company_id: companyId,
+                customer_id: sale.customer_id,
+                type: originalEntry.type === 'debt' ? 'payment' : 'debt',
+                amount: originalEntry.amount,
+                notes: `Cancel Sale #${sale.id}`,
+                source_type: 'sale_cancel',
+                source_id: sale.id,
+                reversal_of_id: originalEntry.id,
+                idempotency_key: `sale:${sale.id}:cancel`,
+              },
+            });
+            const balanceDelta = originalEntry.type === 'debt' ? -originalEntry.amount : originalEntry.amount;
+            await tx.customer.update({ where: { id: sale.customer_id }, data: { balance: { increment: balanceDelta } } });
+          }
+        } else {
+          const unpaid = calculateCustomerDebt(sale.total, sale.amount_paid);
+          if (unpaid > 0.001) {
+            await tx.customerTransaction.create({
             data: {
               company_id: companyId,
               customer_id: sale.customer_id,
-              type: unpaid > 0 ? 'payment' : 'debt',
-              amount: Math.abs(unpaid),
+              type: 'payment',
+              amount: unpaid,
               notes: `Cancel Sale #${sale.id}`,
+              source_type: 'sale_cancel',
+              source_id: sale.id,
+              idempotency_key: `sale:${sale.id}:cancel`,
             },
-          });
-
-          await tx.customer.update({
-            where: { id: sale.customer_id },
-            data: { balance: { decrement: unpaid } },
-          });
+            });
+            await tx.customer.update({ where: { id: sale.customer_id }, data: { balance: { decrement: unpaid } } });
+          }
         }
       }
 
@@ -919,12 +988,19 @@ export async function cancelSale(
 
 export async function getSaleById(saleId: number, tenant: TenantContext): Promise<SaleResponseDTO> {
   const companyId = tenant.company_id;
+  const branchId = tenant.branch_id;
 
   const sale = await prisma.sale.findFirst({
-    where: { id: saleId, company_id: companyId },
+    where: { id: saleId, company_id: companyId, branch_id: branchId },
     include: {
       items: { include: { product: true } },
       sale_payments: true,
+      refunds: {
+        include: {
+          payments: true,
+          items: { include: { product: true } },
+        },
+      },
       customer: true,
     },
   });

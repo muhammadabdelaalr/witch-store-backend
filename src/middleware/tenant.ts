@@ -1,316 +1,153 @@
-import { Request, Response, NextFunction } from "express";
-import { prisma } from "../prisma";
-import { TenantContext } from "./auth";
+import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../prisma';
+import { TenantContext } from '../types/tenant';
 
-const tenantCache = new Map<
-  string,
-  { tenant: TenantContext; expires: number }
->();
+function deny(res: Response, status: number, code: string, message: string): void {
+  res.status(status).json({ success: false, error: code, code, message });
+}
 
-export const tenantResolverMiddleware = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+async function resolveEntitlements(license: any): Promise<{ modules: string[]; features: string[] }> {
+  if (license.allow_all_modules) {
+    const [modules, features] = await Promise.all([
+      prisma.module.findMany({ where: { is_active: true }, select: { key: true } }),
+      prisma.feature.findMany({ where: { is_active: true }, select: { key: true } }),
+    ]);
+    return { modules: modules.map((item) => item.key), features: features.map((item) => item.key) };
+  }
+
+  const [planModules, overrides, planFeatures, featureOverrides] = await Promise.all([
+    prisma.planModule.findMany({ where: { plan_id: license.plan_id }, include: { module: true } }),
+    prisma.licenseModule.findMany({ where: { license_id: license.id }, include: { module: true } }),
+    prisma.planFeature.findMany({ where: { plan_id: license.plan_id }, include: { feature: true } }),
+    prisma.licenseFeature.findMany({ where: { license_id: license.id }, include: { feature: true } }),
+  ]);
+
+  const moduleSet = new Set(planModules.filter((item) => item.module.is_active).map((item) => item.module.key));
+  for (const item of overrides) {
+    if (!item.module.is_active) continue;
+    if (item.is_enabled) moduleSet.add(item.module.key);
+    else moduleSet.delete(item.module.key);
+  }
+
+  const featureSet = new Set(planFeatures.filter((item) => item.feature.is_active).map((item) => item.feature.key));
+  for (const item of featureOverrides) {
+    if (!item.feature.is_active) continue;
+    if (item.is_enabled) featureSet.add(item.feature.key);
+    else featureSet.delete(item.feature.key);
+  }
+
+  return { modules: [...moduleSet], features: [...featureSet] };
+}
+
+export const tenantResolverMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const payload = req.tokenPayload;
-    if (!payload) {
-      res
-        .status(401)
-        .json({ error: "TOKEN_INVALID", message: "توكن التحقق غير صالح." });
+    if (!payload || !['device', 'user'].includes(payload.role)) {
+      deny(res, 401, 'TOKEN_ROLE_INVALID', 'A device or employee token is required.');
       return;
     }
 
-    const deviceIdHeader = req.headers["x-device-id"] as string;
+    const deviceIdHeader = String(req.headers['x-device-id'] || '');
     if (!deviceIdHeader || deviceIdHeader !== payload.device_id) {
-      res
-        .status(403)
-        .json({
-          error: "TENANT_ACCESS_DENIED",
-          message: "معرف الجهاز غير متطابق مع التوكن.",
-        });
+      deny(res, 403, 'TENANT_ACCESS_DENIED', 'Device identity does not match the signed token.');
       return;
     }
 
-    const branchIdHeader = (req.headers["x-branch-id"] as string) || "";
-    const userIdHeader = (req.headers["x-user-id"] as string) || "";
-    const cacheKey = `${payload.company_id}:${payload.license_id}:${payload.device_id}:${branchIdHeader}:${userIdHeader}`;
+    const [company, license, device] = await Promise.all([
+      prisma.company.findUnique({ where: { id: payload.company_id } }),
+      prisma.license.findUnique({ where: { id: payload.license_id } }),
+      prisma.deviceActivation.findUnique({
+        where: { license_id_device_id: { license_id: payload.license_id, device_id: payload.device_id } },
+      }),
+    ]);
 
-    const cached = tenantCache.get(cacheKey);
-    if (cached && cached.expires > Date.now()) {
-      req.tenant = cached.tenant;
-      return next();
+    if (!company || !license || license.company_id !== company.id || !device || device.company_id !== company.id) {
+      deny(res, 403, 'TENANT_ACCESS_DENIED', 'Company, license, or device context is invalid.');
+      return;
     }
-
-    // 1. Verify Company Status
-    const company = await prisma.company.findUnique({
-      where: { id: payload.company_id },
-    });
-
-    if (!company) {
-      res
-        .status(403)
-        .json({
-          error: "TENANT_ACCESS_DENIED",
-          message: "الشركة غير مسجلة بالنظام.",
-        });
+    if (company.status !== 'active') {
+      deny(res, 403, 'COMPANY_SUSPENDED', 'Company access is not active.');
+      return;
+    }
+    if (license.status !== 'active') {
+      deny(res, 403, license.status === 'expired' ? 'LICENSE_EXPIRED' : 'LICENSE_SUSPENDED', 'License is not active.');
+      return;
+    }
+    if (license.expires_at && license.expires_at < new Date()) {
+      deny(res, 403, 'LICENSE_EXPIRED', 'License has expired.');
+      return;
+    }
+    if (device.status !== 'active') {
+      deny(res, 403, 'LICENSE_DEVICE_BLOCKED', 'This device is blocked.');
       return;
     }
 
-    if (company.status === "suspended") {
-      res
-        .status(403)
-        .json({
-          error: "COMPANY_SUSPENDED",
-          message: "تم إيقاف حساب الشركة مؤقتاً. يرجى مراجعة الإدارة.",
-        });
-      return;
-    }
-
-    // 2. Verify License Status
-    const license = await prisma.license.findUnique({
-      where: { id: payload.license_id },
-    });
-
-    if (!license) {
-      res
-        .status(403)
-        .json({ error: "LICENSE_INVALID", message: "الترخيص غير موجود." });
-      return;
-    }
-
-    if (license.status === "suspended") {
-      res
-        .status(403)
-        .json({
-          error: "LICENSE_SUSPENDED",
-          message: "الترخيص موقوف مؤقتاً. يرجى مراجعة الدعم.",
-        });
-      return;
-    }
-
-    // Check expiry
-    const now = new Date();
-    if (license.expires_at && license.expires_at < now) {
-      // Update status to expired in database if not already
-      if (license.status !== "expired") {
-        await prisma.license.update({
-          where: { id: license.id },
-          data: { status: "expired" },
-        });
-      }
-      res
-        .status(403)
-        .json({
-          error: "LICENSE_EXPIRED",
-          message: "انتهت صلاحية الترخيص. يرجى تجديد الاشتراك.",
-        });
-      return;
-    }
-
-    if (license.status === "expired") {
-      res
-        .status(403)
-        .json({
-          error: "LICENSE_EXPIRED",
-          message: "انتهت صلاحية الترخيص. يرجى تجديد الاشتراك.",
-        });
-      return;
-    }
-
-    // 3. Verify Device Activation Status
-    const device = await prisma.deviceActivation.findUnique({
-      where: {
-        license_id_device_id: {
-          license_id: license.id,
-          device_id: payload.device_id,
-        },
-      },
-    });
-
-    if (!device) {
-      res
-        .status(403)
-        .json({
-          error: "LICENSE_INVALID",
-          message: "هذا الجهاز غير مفعل لهذا الترخيص.",
-        });
-      return;
-    }
-
-    if (device.status === "blocked") {
-      res
-        .status(403)
-        .json({
-          error: "LICENSE_DEVICE_BLOCKED",
-          message: "تم حظر هذا الجهاز من قبل الإدارة.",
-        });
-      return;
-    }
-
-    // Throttle last seen updates to once every 2 minutes (non-blocking)
-    if (
-      !device.last_seen_at ||
-      now.getTime() - new Date(device.last_seen_at).getTime() > 120000
-    ) {
-      prisma.deviceActivation
-        .update({
-          where: { id: device.id },
-          data: { last_seen_at: now },
-        })
-        .catch(() => {});
-    }
-
-    // 4. Resolve Allowed Modules & Features
-    let allowedModules: string[] = [];
-    let allowedFeatures: string[] = [];
-
-    if (license.allow_all_modules) {
-      const allMods = await prisma.module.findMany({
-        where: { is_active: true },
-      });
-      const allFeats = await prisma.feature.findMany({
-        where: { is_active: true },
-      });
-      allowedModules = allMods.map((m) => m.key);
-      allowedFeatures = allFeats.map((f) => f.key);
-    } else {
-      // Resolve Modules (Plan modules + License overrides)
-      const planModules = await prisma.planModule.findMany({
-        where: { plan_id: license.plan_id },
-        include: { module: true },
-      });
-      const licenseOverrides = await prisma.licenseModule.findMany({
-        where: { license_id: license.id },
-        include: { module: true },
-      });
-
-      const moduleSet = new Set<string>();
-      // Add defaults from Plan
-      planModules.forEach((pm) => {
-        if (pm.module.is_active) {
-          moduleSet.add(pm.module.key);
-        }
-      });
-      // Apply License overrides
-      licenseOverrides.forEach((lo) => {
-        if (lo.module.is_active) {
-          if (lo.is_enabled) {
-            moduleSet.add(lo.module.key);
-          } else {
-            moduleSet.delete(lo.module.key);
-          }
-        }
-      });
-      allowedModules = Array.from(moduleSet);
-
-      // Resolve Features (Plan features + License overrides)
-      const planFeatures = await prisma.planFeature.findMany({
-        where: { plan_id: license.plan_id },
-        include: { feature: true },
-      });
-      const licenseFeatureOverrides = await prisma.licenseFeature.findMany({
-        where: { license_id: license.id },
-        include: { feature: true },
-      });
-
-      const featureSet = new Set<string>();
-      planFeatures.forEach((pf) => {
-        if (pf.feature.is_active) {
-          featureSet.add(pf.feature.key);
-        }
-      });
-      licenseFeatureOverrides.forEach((lf) => {
-        if (lf.feature.is_active) {
-          if (lf.is_enabled) {
-            featureSet.add(lf.feature.key);
-          } else {
-            featureSet.delete(lf.feature.key);
-          }
-        }
-      });
-      allowedFeatures = Array.from(featureSet);
-    }
-
-    // Resolve branch_id
-    let branchId = branchIdHeader ? parseInt(branchIdHeader, 10) : undefined;
-    if (branchId && !isNaN(branchId)) {
-      const branchExists = await prisma.branch.findFirst({
-        where: { id: branchId, company_id: company.id },
-      });
-      if (!branchExists) {
-        res
-          .status(403)
-          .json({
-            error: "BRANCH_NOT_FOUND",
-            message: "الفرع المحدد غير مسجل لهذه الشركة.",
-          });
+    const headerBranch = Number(req.headers['x-branch-id']);
+    let branchId: number | undefined;
+    if (payload.role === 'user') {
+      branchId = payload.branch_id;
+      if (!branchId || (Number.isFinite(headerBranch) && headerBranch > 0 && headerBranch !== branchId)) {
+        deny(res, 403, 'BRANCH_CONTEXT_MISMATCH', 'Branch context does not match the signed employee session.');
         return;
       }
-    } else {
-      const mainBranch =
-        (await prisma.branch.findFirst({
-          where: { company_id: company.id, is_main: true },
-        })) ||
-        (await prisma.branch.findFirst({
+    } else if (Number.isInteger(headerBranch) && headerBranch > 0) {
+      branchId = headerBranch;
+    }
+
+    const branch = branchId
+      ? await prisma.branch.findFirst({ where: { id: branchId, company_id: company.id } })
+      : await prisma.branch.findFirst({
           where: { company_id: company.id },
-        }));
-      if (!mainBranch) {
-        res
-          .status(403)
-          .json({
-            error: "BRANCH_REQUIRED",
-            message: "لا يوجد فرع مسجل لهذه الشركة.",
-          });
+          orderBy: [{ is_main: 'desc' }, { id: 'asc' }],
+        });
+    if (!branch) {
+      deny(res, 403, 'BRANCH_REQUIRED', 'A valid company branch is required.');
+      return;
+    }
+
+    let userContext: TenantContext['user'];
+    if (payload.role === 'user') {
+      if (!payload.user_id) {
+        deny(res, 401, 'USER_SESSION_REQUIRED', 'The employee token is missing its user identity.');
         return;
       }
-      branchId = mainBranch.id;
-    }
-
-    // 5. Resolve authenticated user and permissions
-    let userContext: TenantContext["user"] | undefined;
-    if (userIdHeader) {
-      const userId = parseInt(userIdHeader, 10);
-      if (!isNaN(userId)) {
-        const user = await prisma.user.findFirst({
-          where: { id: userId, company_id: company.id },
-          select: {
-            id: true,
-            name: true,
-            role: {
-              select: { id: true, key: true, name: true, permissions: true },
-            },
-          },
-        });
-        if (user) {
-          userContext = user;
-        }
+      const user = await prisma.user.findFirst({
+        where: {
+          id: payload.user_id,
+          company_id: company.id,
+          OR: [{ branch_id: branch.id }, { branch_id: null }],
+        },
+        select: {
+          id: true,
+          name: true,
+          role: { select: { id: true, key: true, name: true, permissions: true } },
+        },
+      });
+      if (!user) {
+        deny(res, 401, 'USER_SESSION_INVALID', 'The employee account is no longer valid for this branch.');
+        return;
       }
+      userContext = user;
     }
 
-    // Attach to Request
+    const entitlements = await resolveEntitlements(license);
     req.tenant = {
       company_id: company.id,
       company_name: company.name,
       company_app_name: company.app_name,
       license_id: license.id,
       device_id: device.device_id,
-      branch_id: branchId,
-      allowed_modules: allowedModules,
-      allowed_features: allowedFeatures,
+      branch_id: branch.id,
+      allowed_modules: entitlements.modules,
+      allowed_features: entitlements.features,
       user: userContext,
     };
 
-    // Cache resolved tenant for 60 seconds
-    tenantCache.set(cacheKey, {
-      tenant: req.tenant,
-      expires: Date.now() + 60000,
-    });
-
+    if (!device.last_seen_at || Date.now() - device.last_seen_at.getTime() > 120_000) {
+      prisma.deviceActivation.update({ where: { id: device.id }, data: { last_seen_at: new Date() } }).catch(() => undefined);
+    }
     next();
-  } catch (error: any) {
-    res
-      .status(500)
-      .json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
+  } catch (error) {
+    next(error);
   }
 };

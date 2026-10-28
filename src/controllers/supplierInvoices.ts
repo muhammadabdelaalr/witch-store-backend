@@ -1,21 +1,17 @@
 import { Request, Response } from 'express';
 import { prisma, logUserActivity, getUsername } from '../prisma';
-import { InventoryService } from '../services/inventory.service';
+import { InventoryService, MOVEMENT_TYPES } from '../services/inventory.service';
 
 export const createSupplierInvoice = async (req: Request, res: Response) => {
   try {
     const companyId = req.tenant!.company_id;
     const branchId = req.tenant!.branch_id;
     const username = getUsername(req);
-    const { supplier_id, total, amount_paid, notes, invoice_date, items, seller_name } = req.body;
+    const { supplier_id, total, amount_paid, notes, invoice_date, items } = req.body;
+    const seller_name = username;
 
     if (!supplier_id || total === undefined || amount_paid === undefined || !notes || !invoice_date || !items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({ error: 'supplier_id, total, amount_paid, notes, invoice_date, and items are required' });
-      return;
-    }
-
-    if (!seller_name || seller_name.trim() === '') {
-      res.status(400).json({ error: 'seller_name is required' });
       return;
     }
 
@@ -23,9 +19,17 @@ export const createSupplierInvoice = async (req: Request, res: Response) => {
     const totalFloat = parseFloat(total);
     const amountPaidFloat = parseFloat(amount_paid);
     const parsedInvoiceDate = new Date(invoice_date);
+    const calculatedTotal = Math.round(items.reduce(
+      (sum: number, item: any) => sum + Number(item.qty) * Number(item.unit_cost),
+      0,
+    ) * 100) / 100;
 
     if (isNaN(supplierIdInt) || isNaN(totalFloat) || isNaN(amountPaidFloat) || isNaN(parsedInvoiceDate.getTime())) {
       res.status(400).json({ error: 'Invalid numeric or date format' });
+      return;
+    }
+    if (Math.abs(totalFloat - calculatedTotal) > 0.01 || amountPaidFloat > calculatedTotal) {
+      res.status(400).json({ error: 'INVOICE_TOTAL_MISMATCH', message: 'Invoice total must match its items and paid amount cannot exceed total' });
       return;
     }
 
@@ -44,13 +48,14 @@ export const createSupplierInvoice = async (req: Request, res: Response) => {
           company_id: companyId,
           branch_id: branchId,
           supplier_id: supplierIdInt,
-          total: totalFloat,
+          total: calculatedTotal,
           amount_paid: amountPaidFloat,
           notes,
           seller_name,
           invoice_date: parsedInvoiceDate,
           items: {
             create: items.map((item: any) => ({
+              company_id: companyId,
               product_id: parseInt(item.product_id),
               qty: parseInt(item.qty),
               unit_cost: parseFloat(item.unit_cost),
@@ -88,11 +93,11 @@ export const createSupplierInvoice = async (req: Request, res: Response) => {
           company_id: companyId,
           branch_id: branchId,
           product_id: prodId,
-          movement_type: 'PURCHASE',
+          movement_type: MOVEMENT_TYPES.PURCHASE,
           quantity_delta: qtyInt,
           reference_type: 'supplier_invoice',
           reference_id: newInvoice.id,
-          user_id: (req as any).user?.id,
+          user_id: req.tenant?.user?.id,
           notes: `فاتورة شراء رقم #${newInvoice.id}`,
         });
       }
@@ -104,7 +109,7 @@ export const createSupplierInvoice = async (req: Request, res: Response) => {
           company_id: companyId,
           supplier_id: supplierIdInt,
           type: 'purchase',
-          amount: totalFloat,
+          amount: calculatedTotal,
           notes: `فاتورة شراء رقم #${newInvoice.id} - الإجمالي: ${totalFloat} | [ملاحظة: ${notes}]`,
           invoice_id: newInvoice.id,
           seller_name,
@@ -113,7 +118,7 @@ export const createSupplierInvoice = async (req: Request, res: Response) => {
       });
 
       // Update supplier balance (increment full purchase total)
-      let balanceDelta = totalFloat;
+      let balanceDelta = calculatedTotal;
 
       // Transaction 2: Payment (if paid > 0)
       if (amountPaidFloat > 0) {
@@ -180,7 +185,8 @@ export const updateSupplierInvoice = async (req: Request, res: Response) => {
     const branchId = req.tenant!.branch_id;
     const username = getUsername(req);
     const id = parseInt(req.params.id as string);
-    const { total, amount_paid, notes, invoice_date, items, seller_name, is_refund } = req.body;
+    const { total, amount_paid, notes, invoice_date, items, is_refund } = req.body;
+    const seller_name = username;
 
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid invoice ID' });
@@ -192,17 +198,20 @@ export const updateSupplierInvoice = async (req: Request, res: Response) => {
       return;
     }
 
-    if (!seller_name || seller_name.trim() === '') {
-      res.status(400).json({ error: 'seller_name is required' });
-      return;
-    }
-
     const totalFloat = parseFloat(total);
     const amountPaidFloat = parseFloat(amount_paid);
     const parsedInvoiceDate = new Date(invoice_date);
+    const calculatedTotal = Math.round(items.reduce(
+      (sum: number, item: any) => sum + Number(item.qty) * Number(item.unit_cost),
+      0,
+    ) * 100) / 100;
 
     if (isNaN(totalFloat) || isNaN(amountPaidFloat) || isNaN(parsedInvoiceDate.getTime())) {
       res.status(400).json({ error: 'Invalid numeric or date format' });
+      return;
+    }
+    if (Math.abs(totalFloat - calculatedTotal) > 0.01 || amountPaidFloat > calculatedTotal) {
+      res.status(400).json({ error: 'INVOICE_TOTAL_MISMATCH', message: 'Invoice total must match its items and paid amount cannot exceed total' });
       return;
     }
 
@@ -218,20 +227,22 @@ export const updateSupplierInvoice = async (req: Request, res: Response) => {
       }
 
       const invoiceBranchId = oldInvoice.branch_id || branchId;
+      if (invoiceBranchId !== branchId) {
+        throw new Error('Invoice belongs to another branch');
+      }
 
-      // 2. Revert old stock adjustments on ProductStock level
+      // 2. Reverse the original purchase movements through the central ledger.
       for (const oldItem of oldInvoice.items) {
-        await tx.productStock.update({
-          where: {
-            company_id_branch_id_product_id: {
-              company_id: companyId,
-              branch_id: invoiceBranchId,
-              product_id: oldItem.product_id,
-            },
-          },
-          data: {
-            stock_qty: { decrement: oldItem.qty },
-          },
+        await InventoryService.applyMovement(tx, {
+          company_id: companyId,
+          branch_id: invoiceBranchId,
+          product_id: oldItem.product_id,
+          movement_type: MOVEMENT_TYPES.PURCHASE_REVERSAL,
+          quantity_delta: -oldItem.qty,
+          reference_type: 'supplier_invoice_edit',
+          reference_id: id,
+          user_id: req.tenant?.user?.id,
+          notes: `Reverse previous quantity for supplier invoice #${id}`,
         });
       }
 
@@ -248,24 +259,16 @@ export const updateSupplierInvoice = async (req: Request, res: Response) => {
           },
         });
 
-        await tx.productStock.upsert({
-          where: {
-            company_id_branch_id_product_id: {
-              company_id: companyId,
-              branch_id: branchId,
-              product_id: prodId,
-            },
-          },
-          update: {
-            stock_qty: { increment: qtyInt },
-          },
-          create: {
-            company_id: companyId,
-            branch_id: branchId,
-            product_id: prodId,
-            stock_qty: qtyInt,
-            low_stock_threshold: 5,
-          },
+        await InventoryService.applyMovement(tx, {
+          company_id: companyId,
+          branch_id: branchId,
+          product_id: prodId,
+          movement_type: MOVEMENT_TYPES.PURCHASE,
+          quantity_delta: qtyInt,
+          reference_type: 'supplier_invoice_edit',
+          reference_id: id,
+          user_id: req.tenant?.user?.id,
+          notes: `Apply updated quantity for supplier invoice #${id}`,
         });
       }
 
@@ -278,6 +281,7 @@ export const updateSupplierInvoice = async (req: Request, res: Response) => {
         items.map((item: any) =>
           tx.supplierInvoiceItem.create({
             data: {
+              company_id: companyId,
               invoice_id: id,
               product_id: parseInt(item.product_id),
               qty: parseInt(item.qty),
@@ -289,7 +293,7 @@ export const updateSupplierInvoice = async (req: Request, res: Response) => {
 
       // 5. Calculate net balance difference for the supplier
       const oldUnpaid = oldInvoice.total - oldInvoice.amount_paid;
-      const newUnpaid = totalFloat - amountPaidFloat;
+      const newUnpaid = calculatedTotal - amountPaidFloat;
       const balanceDiff = newUnpaid - oldUnpaid;
 
       // Update supplier balance
@@ -308,7 +312,7 @@ export const updateSupplierInvoice = async (req: Request, res: Response) => {
         await tx.supplierTransaction.update({
           where: { id: purchaseTx.id },
           data: {
-            amount: totalFloat,
+            amount: calculatedTotal,
             created_at: parsedInvoiceDate,
             notes: `[معدلة] فاتورة شراء رقم #${id} - الإجمالي الجديد: ${totalFloat} | [ملاحظة: ${notes}]`,
             seller_name,
@@ -320,7 +324,7 @@ export const updateSupplierInvoice = async (req: Request, res: Response) => {
             company_id: companyId,
             supplier_id: oldInvoice.supplier_id,
             type: 'purchase',
-            amount: totalFloat,
+            amount: calculatedTotal,
             notes: `فاتورة شراء رقم #${id} - الإجمالي: ${totalFloat} | [ملاحظة: ${notes}]`,
             invoice_id: id,
             seller_name,
@@ -368,7 +372,7 @@ export const updateSupplierInvoice = async (req: Request, res: Response) => {
       const newInvoice = await tx.supplierInvoice.update({
         where: { id },
         data: {
-          total: totalFloat,
+          total: calculatedTotal,
           amount_paid: amountPaidFloat,
           notes,
           invoice_date: parsedInvoiceDate,

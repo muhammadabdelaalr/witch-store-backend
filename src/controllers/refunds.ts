@@ -1,221 +1,241 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { PaymentMethod, Prisma } from '../generated/prisma';
 import { prisma } from '../prisma';
+import { writeTenantAuditBestEffort } from '../services/audit.service';
+import { InventoryService, MOVEMENT_TYPES } from '../services/inventory.service';
 
-export const createRefund = async (req: Request, res: Response) => {
+class RefundError extends Error {
+  constructor(public code: string, message: string, public status = 400, public details?: unknown) {
+    super(message);
+  }
+}
+
+const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+export const createRefund = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const companyId = req.tenant!.company_id;
-    const branchId = req.tenant!.branch_id;
-    const saleId = parseInt(req.params.id as string);
-    if (isNaN(saleId)) {
-      res.status(400).json({ error: 'Invalid sale ID' });
-      return;
+    const tenant = req.tenant!;
+    const saleId = Number(req.params.id);
+    if (!Number.isInteger(saleId)) throw new RefundError('INVALID_SALE_ID', 'Invalid sale ID');
+    if (!Array.isArray(req.body.items) || req.body.items.length === 0) {
+      throw new RefundError('EMPTY_REFUND', 'Refund must contain at least one item');
     }
 
-    const { items, reason, seller_name } = req.body;
+    const result = await prisma.$transaction(async (tx) => {
+      // Serialize all partial refunds for the same sale so remaining quantities
+      // and payment-method ceilings are calculated from the latest committed rows.
+      await tx.$queryRaw`
+        SELECT id FROM sales
+        WHERE id = ${saleId}
+          AND company_id = ${tenant.company_id}
+          AND branch_id = ${tenant.branch_id}
+        FOR UPDATE
+      `;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'Refund must contain at least one item' });
-      return;
-    }
+      const shifts = await tx.$queryRaw<Array<{ id: number }>>`
+        SELECT id FROM shifts
+        WHERE company_id = ${tenant.company_id}
+          AND branch_id = ${tenant.branch_id}
+          AND user_id = ${tenant.user!.id}
+          AND status = 'open'
+        ORDER BY opened_at DESC
+        LIMIT 1
+        FOR UPDATE
+      `;
+      const shift = shifts[0];
+      if (!shift) throw new RefundError('OPEN_SHIFT_REQUIRED', 'An open shift is required to create a refund', 409);
 
-    // Start Prisma Transaction
-    const refund = await prisma.$transaction(async (tx: any) => {
-      // 1. Fetch the original sale and make sure it belongs to the tenant
       const sale = await tx.sale.findFirst({
-        where: { id: saleId, company_id: companyId },
-        include: { items: true, refunds: { include: { items: true } } },
+        where: { id: saleId, company_id: tenant.company_id, branch_id: tenant.branch_id, status: 'completed' },
+        include: {
+          items: true,
+          sale_payments: true,
+          refunds: { include: { items: true, payments: true } },
+        },
+      });
+      if (!sale) throw new RefundError('SALE_NOT_FOUND', 'Completed sale not found in this branch', 404);
+
+      const soldByProduct = new Map(sale.items.map((item) => [item.product_id, item]));
+      const alreadyRefunded = new Map<number, number>();
+      for (const refund of sale.refunds) {
+        for (const item of refund.items) {
+          alreadyRefunded.set(item.product_id, (alreadyRefunded.get(item.product_id) || 0) + item.qty);
+        }
+      }
+
+      const verifiedItems: Array<{ product_id: number; qty: number; unit_price: number; cost_price: number }> = [];
+      let discountedLinesSubtotal = 0;
+      for (const input of req.body.items) {
+        const productId = Number(input.product_id);
+        const qty = Number(input.qty);
+        const soldItem = soldByProduct.get(productId);
+        if (!soldItem) throw new RefundError('ITEM_NOT_IN_SALE', `Product ${productId} was not part of this sale`);
+        if (!Number.isInteger(qty) || qty <= 0) throw new RefundError('INVALID_QUANTITY', 'Refund quantities must be positive integers');
+        const remaining = soldItem.qty - (alreadyRefunded.get(productId) || 0);
+        if (qty > remaining) {
+          throw new RefundError('REFUND_QUANTITY_EXCEEDED', `Only ${remaining} pieces remain refundable`, 409, { product_id: productId, remaining });
+        }
+        discountedLinesSubtotal += (soldItem.unit_price - soldItem.line_discount) * qty;
+        verifiedItems.push({ product_id: productId, qty, unit_price: soldItem.unit_price, cost_price: soldItem.cost_price });
+      }
+
+      const afterInvoiceDiscount = discountedLinesSubtotal * (1 - sale.discount / 100);
+      const refundTotal = round2(afterInvoiceDiscount * (1 + sale.tax / 100));
+      const originalByMethod = new Map<PaymentMethod, number>();
+      for (const payment of sale.sale_payments) {
+        originalByMethod.set(payment.method, round2((originalByMethod.get(payment.method) || 0) + payment.amount));
+      }
+      if (originalByMethod.size === 0) {
+        const legacyAllocated = sale.payment_method === PaymentMethod.deferred
+          ? sale.total
+          : Math.min(sale.amount_paid, sale.total);
+        originalByMethod.set(sale.payment_method, round2(legacyAllocated));
+      }
+
+      let allocations: Array<{ method: PaymentMethod; amount: number }> = [];
+      if (Array.isArray(req.body.payments) && req.body.payments.length > 0) {
+        allocations = req.body.payments.map((payment: any) => ({
+          method: payment.method as PaymentMethod,
+          amount: round2(Number(payment.amount)),
+        }));
+      } else if (originalByMethod.size === 1) {
+        allocations = [{ method: [...originalByMethod.keys()][0], amount: refundTotal }];
+      } else {
+        throw new RefundError('REFUND_PAYMENT_ALLOCATION_REQUIRED', 'Split-payment sales require an explicit refund allocation', 409);
+      }
+
+      if (allocations.some((payment) => !Object.values(PaymentMethod).includes(payment.method) || !Number.isFinite(payment.amount) || payment.amount <= 0)) {
+        throw new RefundError('INVALID_REFUND_PAYMENT', 'Refund payment allocation is invalid');
+      }
+      if (Math.abs(round2(allocations.reduce((sum, payment) => sum + payment.amount, 0)) - refundTotal) > 0.01) {
+        throw new RefundError('PAYMENT_MISMATCH', 'Refund payment allocation must equal the refund total');
+      }
+
+      const refundedByMethod = new Map<PaymentMethod, number>();
+      for (const previousRefund of sale.refunds) {
+        for (const payment of previousRefund.payments) {
+          refundedByMethod.set(payment.method, round2((refundedByMethod.get(payment.method) || 0) + payment.amount));
+        }
+      }
+      for (const allocation of allocations) {
+        const available = round2((originalByMethod.get(allocation.method) || 0) - (refundedByMethod.get(allocation.method) || 0));
+        if (allocation.amount > available + 0.01) {
+          throw new RefundError('REFUND_METHOD_LIMIT_EXCEEDED', `Refund exceeds the amount paid by ${allocation.method}`, 409, { method: allocation.method, available });
+        }
+      }
+
+      const refund = await tx.refund.create({
+        data: {
+          company_id: tenant.company_id,
+          branch_id: tenant.branch_id,
+          shift_id: shift.id,
+          user_id: tenant.user!.id,
+          sale_id: sale.id,
+          total: refundTotal,
+          reason: typeof req.body.reason === 'string' ? req.body.reason.trim().slice(0, 500) || null : null,
+          seller_name: tenant.user!.name,
+          items: {
+            create: verifiedItems.map((item) => ({
+              ...item,
+              company_id: tenant.company_id,
+            })),
+          },
+          payments: {
+            create: allocations.map((payment) => ({
+              company_id: tenant.company_id,
+              branch_id: tenant.branch_id,
+              method: payment.method,
+              amount: payment.amount,
+            })),
+          },
+        },
+        include: { items: true, payments: true },
       });
 
-      if (!sale) {
-        throw new Error('Sale not found');
+      for (const item of verifiedItems) {
+        await InventoryService.applyMovement(tx, {
+          company_id: tenant.company_id,
+          branch_id: tenant.branch_id,
+          product_id: item.product_id,
+          movement_type: MOVEMENT_TYPES.REFUND,
+          quantity_delta: item.qty,
+          reference_type: 'refund',
+          reference_id: refund.id,
+          user_id: tenant.user!.id,
+          notes: `Refund #${refund.id} for Sale #${sale.id}`,
+        });
       }
 
-      // 2. Validate refund quantities against original sale AND past refunds
-      const maxRefundable: Record<number, { maxQty: number, unitPrice: number, costPrice: number }> = {};
-      for (const saleItem of sale.items) {
-        maxRefundable[saleItem.product_id] = {
-          maxQty: saleItem.qty,
-          unitPrice: saleItem.unit_price,
-          costPrice: saleItem.cost_price,
-        };
-      }
-
-      for (const pastRefund of sale.refunds) {
-        for (const refundItem of pastRefund.items) {
-          if (maxRefundable[refundItem.product_id]) {
-            // Business Rule: If a product was refunded once, it cannot be refunded again.
-            maxRefundable[refundItem.product_id].maxQty = 0;
+      if (sale.customer_id) {
+        const originalDebt = await tx.customerTransaction.aggregate({
+          where: { company_id: tenant.company_id, customer_id: sale.customer_id, source_type: 'sale', source_id: sale.id, type: 'debt' },
+          _sum: { amount: true },
+        });
+        const priorDebtReductions = await tx.customerTransaction.aggregate({
+          where: { company_id: tenant.company_id, customer_id: sale.customer_id, source_type: 'sale_refund', source_id: sale.id, type: 'payment' },
+          _sum: { amount: true },
+        });
+        const debtRemaining = Math.max(0, (originalDebt._sum.amount || 0) - (priorDebtReductions._sum.amount || 0));
+        const deferredRefund = allocations
+          .filter((payment) => payment.method === PaymentMethod.deferred)
+          .reduce((sum, payment) => sum + payment.amount, 0);
+        const debtReduction = round2(Math.min(deferredRefund, debtRemaining));
+        const deferredExcess = round2(Math.max(0, deferredRefund - debtReduction));
+        if (debtReduction > 0) {
+          await tx.customerTransaction.create({
+            data: {
+              company_id: tenant.company_id,
+              customer_id: sale.customer_id,
+              type: 'payment',
+              amount: debtReduction,
+              notes: `Debt reduction for Refund #${refund.id}, Sale #${sale.id}`,
+              source_type: 'sale_refund',
+              source_id: sale.id,
+              idempotency_key: `refund:${refund.id}:debt`,
+            },
+          });
+          await tx.customer.update({ where: { id: sale.customer_id }, data: { balance: { decrement: debtReduction } } });
+        }
+        if (deferredExcess > 0) {
+          const deferredPayment = await tx.refundPayment.findFirst({
+            where: { refund_id: refund.id, method: PaymentMethod.deferred },
+          });
+          if (deferredPayment) {
+            const remainingDeferred = round2(deferredPayment.amount - deferredExcess);
+            if (remainingDeferred > 0) {
+              await tx.refundPayment.update({ where: { id: deferredPayment.id }, data: { amount: remainingDeferred } });
+            } else {
+              await tx.refundPayment.delete({ where: { id: deferredPayment.id } });
+            }
+            await tx.refundPayment.create({
+              data: {
+                refund_id: refund.id,
+                company_id: tenant.company_id,
+                branch_id: tenant.branch_id,
+                method: PaymentMethod.cash,
+                amount: deferredExcess,
+              },
+            });
           }
         }
       }
 
-      let rawRefundSubtotal = 0;
-      const verifiedRefundItems = [];
-
-      for (const item of items) {
-        const productIdInt = parseInt(item.product_id);
-        const qtyInt = parseInt(item.qty);
-
-        if (qtyInt <= 0) continue;
-
-        if (!maxRefundable[productIdInt]) {
-          throw new Error(`Product ID ${productIdInt} was not part of this sale`);
-        }
-
-        if (qtyInt > maxRefundable[productIdInt].maxQty) {
-          throw new Error(`Cannot refund ${qtyInt} of Product ID ${productIdInt}. Only ${maxRefundable[productIdInt].maxQty} available for refund.`);
-        }
-
-        const refundItemAmount = qtyInt * maxRefundable[productIdInt].unitPrice;
-        rawRefundSubtotal += refundItemAmount;
-
-        verifiedRefundItems.push({
-          product_id: productIdInt,
-          qty: qtyInt,
-          unit_price: maxRefundable[productIdInt].unitPrice,
-          cost_price: maxRefundable[productIdInt].costPrice,
-        });
-
-        // 3. Restock inventory at branch level
-        await tx.productStock.upsert({
-          where: {
-            company_id_branch_id_product_id: {
-              company_id: companyId,
-              branch_id: branchId,
-              product_id: productIdInt,
-            },
-          },
-          update: {
-            stock_qty: {
-              increment: qtyInt,
-            },
-          },
-          create: {
-            company_id: companyId,
-            branch_id: branchId,
-            product_id: productIdInt,
-            stock_qty: qtyInt,
-            low_stock_threshold: 5,
-          },
-        });
-
-        // Also restock core fallback stock_qty column
-        await tx.product.update({
-          where: { id: productIdInt },
-          data: {
-            stock_qty: {
-              increment: qtyInt,
-            },
-          },
-        });
-
-        // Record audit inventory movement
-        const updatedStock = await tx.productStock.findUnique({
-          where: {
-            company_id_branch_id_product_id: {
-              company_id: companyId,
-              branch_id: branchId,
-              product_id: productIdInt,
-            },
-          },
-        });
-
-        await tx.inventoryMovement.create({
-          data: {
-            company_id: companyId,
-            branch_id: branchId,
-            product_id: productIdInt,
-            movement_type: 'SALE_RETURN',
-            quantity_delta: qtyInt,
-            balance_after: updatedStock ? updatedStock.stock_qty : qtyInt,
-            reference_type: 'refund',
-            reference_id: sale.id,
-            user_id: req.tenant?.user?.id || undefined,
-            notes: `Refund for Sale #${sale.id}`,
-          },
-        });
-      }
-
-      if (verifiedRefundItems.length === 0) {
-        throw new Error('No valid items to refund');
-      }
-
-      // Calculate final refund total matching invoice structure
-      const discountAmount = rawRefundSubtotal * (sale.discount / 100);
-      const taxAmount = (rawRefundSubtotal - discountAmount) * (sale.tax / 100);
-      const refundTotal = rawRefundSubtotal - discountAmount + taxAmount;
-
-      // 4. Create the Refund record
-      const newRefund = await tx.refund.create({
-        data: {
-          company_id: companyId,
-          branch_id: branchId,
-          sale_id: sale.id,
-          total: refundTotal,
-          reason: reason || null,
-          seller_name: seller_name || null,
-          items: {
-            create: verifiedRefundItems,
-          },
-        },
+      return tx.refund.findUniqueOrThrow({
+        where: { id: refund.id },
+        include: { items: true, payments: true },
       });
+    }, { maxWait: 15_000, timeout: 30_000, isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
-      // 5. Update Customer Ledger if Customer is attached
-      if (sale.customer_id) {
-        const customer = await tx.customer.findFirst({
-          where: { id: sale.customer_id, company_id: companyId },
-        });
-        if (customer) {
-          // Create customer ledger transaction for the refund
-          await tx.customerTransaction.create({
-            data: {
-              company_id: companyId,
-              customer_id: sale.customer_id,
-              type: 'payment',
-              amount: refundTotal,
-              notes: `Refund for Sale #${sale.id}`,
-            },
-          });
-
-          // Update customer balance
-          await tx.customer.update({
-            where: { id: sale.customer_id },
-            data: {
-              balance: {
-                decrement: refundTotal,
-              },
-            },
-          });
-        }
-      }
-
-      // 6. User Activity Log
-      if (seller_name) {
-        const user = await tx.user.findFirst({
-          where: { name: seller_name, company_id: companyId },
-        });
-        if (user) {
-          const logs = JSON.parse(user.logs || '[]');
-          logs.push({
-            action: 'CREATE_REFUND',
-            details: { refund_id: newRefund.id, sale_id: sale.id, total: refundTotal },
-            timestamp: new Date().toISOString(),
-          });
-          await tx.user.update({
-            where: { id: user.id },
-            data: { logs: JSON.stringify(logs) },
-          });
-        }
-      }
-
-      return newRefund;
-    }, {
-      maxWait: 15000,
-      timeout: 30000,
+    writeTenantAuditBestEffort(req, {
+      action: 'CREATE_REFUND', entityType: 'refund', entityId: result.id,
+      details: { sale_id: saleId, total: result.total, payment_methods: result.payments.map((payment) => payment.method) },
     });
-
-    res.status(201).json(refund);
-  } catch (error: any) {
-    res.status(400).json({ error: error.message });
+    res.status(201).json(result);
+  } catch (error) {
+    if (error instanceof RefundError) {
+      res.status(error.status).json({ success: false, error: error.code, code: error.code, message: error.message, details: error.details });
+      return;
+    }
+    next(error);
   }
 };

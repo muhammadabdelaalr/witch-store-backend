@@ -8,8 +8,8 @@ const options: swaggerJsdoc.Options = {
     openapi: "3.0.0",
     info: {
       title: "ERP Store API",
-      version: "1.0.0",
-      description: "API documentation for the ERP Store Backend",
+      version: "1.1.0",
+      description: "Witch Store API. /api/v1 is canonical; /api is a temporary deprecated alias.",
     },
     servers: [
       {
@@ -72,4 +72,3 @@ export const setupSwagger = (app: Express) => {
     `📄 Swagger docs available at /api-docs (or http://localhost:${process.env.PORT || 3000}/api-docs)`,
   );
 };
-

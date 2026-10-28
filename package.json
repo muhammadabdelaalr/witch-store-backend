@@ -8,7 +8,11 @@
     "build": "tsc",
     "postbuild": "node -e \"fs.rmSync('dist/generated/prisma', { recursive: true, force: true }); fs.cpSync('src/generated/prisma', 'dist/generated/prisma', { recursive: true });\"",
     "start": "node dist/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "audit:baseline": "ts-node scripts/baseline-audit.ts",
+    "data:reset:test": "ts-node scripts/reset-test-data.ts",
+    "data:seed:qa": "ts-node scripts/seed-qa-data.ts",
     "postinstall": "prisma generate"
   },
   "keywords": [],
@@ -22,10 +26,12 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.21.0",
     "swagger-jsdoc": "^6.3.0",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -34,10 +40,13 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.1",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "prisma": "^7.8.0",
+    "supertest": "^7.3.1",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
   }
 }

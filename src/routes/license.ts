@@ -5,8 +5,9 @@ import {
   refreshLicenseToken,
   logoutDevice
 } from '../controllers/license';
-import { authTokenMiddleware, rateLimitMiddleware } from '../middleware/auth';
+import { authTokenMiddleware, rateLimitMiddleware, requireDeviceSession } from '../middleware/auth';
 import { tenantResolverMiddleware } from '../middleware/tenant';
+import { emptyBodySchema, licenseActivationSchema, refreshTokenSchema, validateBody } from '../middleware/validate';
 
 const router = Router();
 
@@ -20,7 +21,8 @@ const router = Router();
 // 1. License Activation (Rate limited)
 router.post(
   '/activate',
-  rateLimitMiddleware(15 * 60 * 1000, 20), // 15 mins, 20 requests max
+  rateLimitMiddleware(15 * 60 * 1000, 20, 'license-activation'),
+  validateBody(licenseActivationSchema),
   activateLicense
 );
 
@@ -28,14 +30,17 @@ router.post(
 router.post(
   '/validate',
   authTokenMiddleware,
+  requireDeviceSession,
   tenantResolverMiddleware,
+  validateBody(emptyBodySchema),
   validateLicense
 );
 
 // 3. Refresh License Token (Rate limited)
 router.post(
   '/refresh-token',
-  rateLimitMiddleware(15 * 60 * 1000, 50),
+  rateLimitMiddleware(15 * 60 * 1000, 50, 'license-refresh'),
+  validateBody(refreshTokenSchema),
   refreshLicenseToken
 );
 
@@ -43,7 +48,9 @@ router.post(
 router.post(
   '/logout-device',
   authTokenMiddleware,
+  requireDeviceSession,
   tenantResolverMiddleware,
+  validateBody(emptyBodySchema),
   logoutDevice
 );
 

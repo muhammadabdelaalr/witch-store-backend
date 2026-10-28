@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
+import { requireSecret } from '../config/env';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-fallback-key-replace-in-env';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev-jwt-refresh-secret-fallback-key';
+export type TokenRole = 'owner' | 'support' | 'sales' | 'device' | 'user';
 
 export interface TokenPayload {
   user_id?: number;
@@ -9,24 +9,50 @@ export interface TokenPayload {
   company_id: number;
   license_id: number;
   device_id: string;
-  role: 'owner' | 'device' | 'user';
-  email?: string; // for owner portal
+  branch_id?: number;
+  role: TokenRole;
+  email?: string;
+}
+
+function jwtSecret(): string {
+  return requireSecret('JWT_SECRET');
+}
+
+function refreshSecret(): string {
+  return requireSecret('JWT_REFRESH_SECRET');
 }
 
 export function generateAccessToken(payload: TokenPayload): string {
-  // Access tokens last 15 minutes in standard configs, but for local retail stability we can set to 2 hours
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '2h' });
+  const expiresIn = payload.role === 'user' ? '12h' : '2h';
+  return jwt.sign(payload, jwtSecret(), { expiresIn });
+}
+
+export function generateUserAccessToken(
+  payload: Omit<TokenPayload, 'role'> & { role?: 'user'; branch_id: number; user_id: number },
+): { token: string; expiresAt: string } {
+  const token = jwt.sign({ ...payload, role: 'user' }, jwtSecret(), { expiresIn: '12h' });
+  return {
+    token,
+    expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+  };
 }
 
 export function generateRefreshToken(payload: Omit<TokenPayload, 'role'> & { role: string }): string {
-  // Refresh tokens last 30 days
-  return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: '30d' });
+  if (payload.role === 'user') {
+    throw new Error('Employee sessions do not support refresh tokens');
+  }
+  return jwt.sign(payload, refreshSecret(), { expiresIn: '30d' });
 }
 
 export function verifyAccessToken(token: string): TokenPayload {
-  return jwt.verify(token, JWT_SECRET) as TokenPayload;
+  return jwt.verify(token, jwtSecret()) as TokenPayload;
 }
 
 export function verifyRefreshToken(token: string): TokenPayload {
-  return jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
+  return jwt.verify(token, refreshSecret()) as TokenPayload;
+}
+
+export function decodeTokenWithoutVerification(token: string): Partial<TokenPayload> | null {
+  const decoded = jwt.decode(token);
+  return decoded && typeof decoded === 'object' ? decoded as Partial<TokenPayload> : null;
 }

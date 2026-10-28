@@ -1,0 +1,2 @@
+ALTER TABLE "users" DROP COLUMN IF EXISTS "plain_password";
+ALTER TABLE "users" DROP COLUMN IF EXISTS "logs";

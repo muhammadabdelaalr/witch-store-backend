@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-10-26T10:39:13.987Z",
+  "scope": "configured test database (all companies)",
+  "open_shifts": 1,
+  "held_sales": 2,
+  "non_bcrypt_passwords": 0,
+  "stock_ledger_mismatches": 79,
+  "customer_balance_mismatches": 5,
+  "cross_tenant_rows": 30,
+  "migration_applied": false,
+  "note": "Read-only baseline. Take a staging snapshot and resolve scoped test-tenant mismatches before applying migrations."
+}

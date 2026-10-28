@@ -5,16 +5,18 @@ import {
   updateExpense,
   deleteExpense,
 } from '../controllers/expenses';
-import { authTokenMiddleware } from '../middleware/auth';
+import { authTokenMiddleware, requireUserSession } from '../middleware/auth';
 import { tenantResolverMiddleware } from '../middleware/tenant';
 import { requireModule } from '../middleware/guards';
 import { requirePermission } from '../middleware/permission';
 import { PERMISSIONS } from '../utils/permissions';
+import { expenseListQuerySchema, expenseSchema, idParamSchema, updateExpenseSchema, validateBody, validateParams, validateQuery } from '../middleware/validate';
 
 const router = Router();
 
 router.use(authTokenMiddleware);
 router.use(tenantResolverMiddleware);
+router.use(requireUserSession);
 router.use(requireModule('expenses'));
 
 /**
@@ -26,7 +28,7 @@ router.use(requireModule('expenses'));
 
 /**
  * @swagger
- * /api/expenses:
+ * /api/v1/expenses:
  *   get:
  *     summary: Get all expenses
  *     tags: [Expenses]
@@ -61,12 +63,12 @@ router.use(requireModule('expenses'));
  *       200:
  *         description: Success
  */
-router.get('/', requirePermission(PERMISSIONS.EXPENSE_READ), getAllExpenses);
-router.post('/', requirePermission(PERMISSIONS.EXPENSE_CREATE), createExpense);
+router.get('/', requirePermission(PERMISSIONS.EXPENSE_READ), validateQuery(expenseListQuerySchema), getAllExpenses);
+router.post('/', requirePermission(PERMISSIONS.EXPENSE_CREATE), validateBody(expenseSchema), createExpense);
 
 /**
  * @swagger
- * /api/expenses/{id}:
+ * /api/v1/expenses/{id}:
  *   put:
  *     summary: Update an expense
  *     tags: [Expenses]
@@ -109,7 +111,7 @@ router.post('/', requirePermission(PERMISSIONS.EXPENSE_CREATE), createExpense);
  *         schema:
  *           type: string
  */
-router.put('/:id', requirePermission(PERMISSIONS.EXPENSE_UPDATE), updateExpense);
-router.delete('/:id', requirePermission(PERMISSIONS.EXPENSE_DELETE), deleteExpense);
+router.put('/:id', requirePermission(PERMISSIONS.EXPENSE_UPDATE), validateParams(idParamSchema), validateBody(updateExpenseSchema), updateExpense);
+router.delete('/:id', requirePermission(PERMISSIONS.EXPENSE_DELETE), validateParams(idParamSchema), deleteExpense);
 
 export default router;

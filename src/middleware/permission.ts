@@ -4,7 +4,13 @@ export const requirePermission = (...permissions: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = req.tenant?.user;
     if (!user) {
-      return next();
+      res.status(401).json({
+        success: false,
+        error: 'USER_SESSION_REQUIRED',
+        code: 'USER_SESSION_REQUIRED',
+        message: 'A signed employee session is required.',
+      });
+      return;
     }
     const userPermissions = user?.role?.permissions || [];
 
@@ -25,6 +31,15 @@ export const requirePermission = (...permissions: string[]) => {
 export const requireAnyPermission = (...permissions: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = req.tenant?.user;
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        error: 'USER_SESSION_REQUIRED',
+        code: 'USER_SESSION_REQUIRED',
+        message: 'A signed employee session is required.',
+      });
+      return;
+    }
     const userPermissions = user?.role?.permissions || [];
 
     const hasAny = permissions.some((p) => userPermissions.includes(p));
